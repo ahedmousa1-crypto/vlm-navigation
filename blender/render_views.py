@@ -32,6 +32,7 @@ sys.path.insert(0, os.path.dirname(HERE))
 from trace_format import empty_ground_truth, project_trace_to_pixels, set_embodiment_paths  # noqa: E402
 from worldlib.assets_look import AssetLook  # noqa: E402
 from worldlib.classes import CLASSES, class_for  # noqa: E402
+from worldlib.lighting import PRESETS, Lighting, preset_for  # noqa: E402
 from worldlib.planner import HumanPlanner  # noqa: E402
 from worldlib.scene_setup import RES_X, RES_Y, configure_eevee, configure_mask_render  # noqa: E402
 from worldlib.tasks import ViewTasks  # noqa: E402
@@ -59,6 +60,9 @@ def parse_args():
     parser.add_argument("--skip_existing", action="store_true", help="Skip views that already have an image.")
     parser.add_argument("--look", choices=("procedural", "assets"), default="procedural",
                         help="'assets' swaps in Poly Haven HDRI skies and ground textures (tools/fetch_assets.py).")
+    parser.add_argument("--lighting", choices=("mix",) + tuple(PRESETS), default="mix",
+                        help="'mix' picks one preset per view (55%% day, 15%% overcast, 15%% dusk, 10%% night, "
+                             "5%% moonlight); a preset name uses it for every view. Procedural look only.")
     return parser.parse_args(argv)
 
 
@@ -107,10 +111,11 @@ def make_record(cam, layout, view_tasks, task, index, look):
         "ground_truth": ground_truth,
         "category": task["category"],
         "context": view_tasks.context([task]),
-        "metadata": {**METADATA, "weather_conditions": look["weather"]},
+        "metadata": {**METADATA, "weather_conditions": look["weather"], "lighting_conditions": look["lighting"]},
         "synthetic": {
             "look": look["name"],
             "hdri": look["hdri"],
+            "lighting_preset": look["preset"],
             "world_seed": layout["seed"],
             "block": view_tasks.block["id"] if view_tasks.block else None,
             "variant": view_tasks.block["variant"] if view_tasks.block else None,
@@ -157,9 +162,12 @@ def main():
 
     assign_mask_colors()
     asset_look = None
+    lighting = None
     if args.look == "assets":
         asset_look = AssetLook(os.path.join(HERE, "assets"))
         asset_look.apply_textures()
+    else:
+        lighting = Lighting(scene)
     samples_path = os.path.join(out_dir, "samples.jsonl")
     records = load_records(samples_path)
     log_path = os.path.join(out_dir, "render_log.csv")
@@ -173,8 +181,15 @@ def main():
         for cam in cams:
             start = time.perf_counter()
             scene.camera = cam
+            look = {"name": args.look, "hdri": None, "weather": "Clear", "lighting": "Daylight", "preset": "day"}
+            light_info = None
+            if lighting is not None:
+                light_info = lighting.apply(preset_for(cam.name, args.lighting))
+                look.update(weather=light_info["weather"], lighting=light_info["lighting"], preset=light_info["preset"])
+            elif asset_look is not None:
+                look["hdri"], look["weather"] = asset_look.apply_sky(cam.name)
             bpy.context.view_layer.update()
-            view_tasks = ViewTasks(scene, cam, planner, layout, rng=random.Random(cam.name))
+            view_tasks = ViewTasks(scene, cam, planner, layout, rng=random.Random(cam.name), lighting=light_info)
             tasks = view_tasks.generate(max_tasks=args.max_tasks)
             records = [r for r in records if r.get("view") != cam.name]
             if not tasks:
@@ -182,10 +197,9 @@ def main():
                 print(f"view_skipped {cam.name} no valid task")
                 continue
 
-            look = {"name": args.look, "hdri": None, "weather": "Clear"}
-            if asset_look is not None:
-                look["hdri"], look["weather"] = asset_look.apply_sky(cam.name)
             configure_eevee(scene, samples=args.samples)
+            if light_info is not None:
+                scene.view_settings.exposure = PRESETS[light_info["preset"]]["exposure"]
             render_to(scene, os.path.join(out_dir, "images", cam.name + ".png"))
             configure_mask_render(scene)
             render_to(scene, os.path.join(out_dir, "work", "masks_rgb", cam.name + ".png"))

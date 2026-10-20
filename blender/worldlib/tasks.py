@@ -169,18 +169,23 @@ def disambiguate(cands, landmarks, rng):
     return out
 
 
-def noun_of(obj):
+def noun_of(obj, lamps_on=False):
     category = obj.get("category")
     color = obj.get("color_name")
     if category in ("cat", "dog", "car") and color:
         return f"{color} {category}"
     if category == "tree" and obj.get("tree_style") == "conifer":
         return "pine tree"
+    if category == "street_lamp" and lamps_on:
+        return "lit street lamp"
     return BASE_NOUN.get(category, category.replace("_", " "))
 
 
 class ViewTasks:
-    def __init__(self, scene, cam, planner, layout, rng=None):
+    def __init__(self, scene, cam, planner, layout, rng=None, lighting=None):
+        """``lighting``: the preset info from lighting.Lighting.apply (None = day)."""
+        self.lighting = lighting or {"preset": "day", "lamps_on": False}
+        self.lamps_on = self.lighting["lamps_on"]
         self.scene = scene
         self.cam = cam
         self.planner = planner
@@ -268,7 +273,7 @@ class ViewTasks:
                 continue
             if not visible_from(self.scene, self.depsgraph, self.cam_loc, center, {obj.name}):
                 continue
-            cand = {"kind": category, "noun": noun_of(obj), "object": obj.name, "xy": center[:2], "px": px,
+            cand = {"kind": category, "noun": noun_of(obj, self.lamps_on), "object": obj.name, "xy": center[:2], "px": px,
                     "dist": dist}
             landmarks.append(cand)
             if obj.get("in_traffic") or not MIN_DIST <= dist <= MAX_DIST:
@@ -382,6 +387,8 @@ class ViewTasks:
             categories.append("Stationary Obstacle")
         if self.passes_dynamic(paths[0][2], cand.get("object")):
             categories.append("Dynamic Obstacle")
+        if self.lighting["preset"] in ("night", "moonlight"):
+            categories.append("Visibility")
         if not categories:
             categories.append("Semantic Terrain")
         return {
@@ -445,6 +452,11 @@ class ViewTasks:
         parts = [VARIANT_CONTEXT.get(block["variant"], "City street") if block else "City street"]
         if block and any(info["bike_w"] > 0 for info in block["sides"].values()):
             parts.append("Bike lane next to the curb")
+        preset = self.lighting["preset"]
+        if preset != "day":
+            parts.append({"overcast": "Overcast sky", "dusk": "Dusk, street lamps on",
+                          "night": "Night, street lamps and some windows lit",
+                          "moonlight": "Night, only moonlight"}[preset])
         landmarks = getattr(self, "landmarks", [])
         if any(self.scene.objects[l["object"]].get("in_traffic") for l in landmarks):
             parts.append("Cars stopped in the driving lanes")

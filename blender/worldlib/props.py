@@ -165,7 +165,7 @@ def make_car(paint):
             for wy in (-0.78, 0.78):
                 bm_wheel(bm, wx, wy, 0.32, 0.32, 0.22, axle="y", material_index=2)
 
-    return Prop(builder, [paint, "glass", "tire"], "obstacle", "car", 2.2, 0.9)
+    return Prop(builder, [paint, "car_glass", "tire"], "obstacle", "car", 2.2, 0.9)
 
 
 def make_cone():

@@ -67,6 +67,13 @@ python tools/export_hf.py                                     # Hugging Face dat
 (default `b12`, `b22`) goes to `test`, the rest to `train`, so near-identical
 views never land in both splits. A separate world is planned for later.
 
+Lighting: by default each view gets one preset, picked deterministically from
+its name: day 55%, overcast 15%, dusk 15% (lamps on, some windows lit),
+night 10% (lamps and windows lit), moonlight 5% (no artificial light).
+`metadata.lighting_conditions` and `weather_conditions` follow the preset;
+night and moonlight samples add the `Visibility` category, and lit lamps are
+called "the lit street lamp". `--lighting day` (or any preset) forces one.
+
 `render_views.py --look assets` swaps in photographic skies and ground
 textures; geometry and traces are identical to the default procedural look.
 A new `--seed` builds a different town (block order, widths, props).

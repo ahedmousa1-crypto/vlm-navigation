@@ -99,6 +99,8 @@ def build_materials():
         "facade_gray": layered_material("mat_facade_gray", (0.30, 0.31, 0.32), (0.55, 0.56, 0.57), 0.7, 12.0, 0.7, 0.93, 0.25),
         "facade_beige": layered_material("mat_facade_beige", (0.55, 0.45, 0.32), (0.78, 0.68, 0.52), 0.7, 11.0, 0.75, 0.95, 0.25),
         "glass": flat_material("mat_glass", (0.06, 0.09, 0.12), roughness=0.08, metallic=0.4),
+        # Separate from window glass so car windows do not glow when windows light up at night.
+        "car_glass": flat_material("mat_car_glass", (0.05, 0.07, 0.09), roughness=0.06, metallic=0.4),
         "door": flat_material("mat_door", (0.22, 0.13, 0.07), roughness=0.5),
         "roof": layered_material("mat_roof", (0.10, 0.10, 0.11), (0.25, 0.24, 0.24), 1.0, 15.0, 0.75, 0.95, 0.3),
         "car_red": flat_material("mat_car_red", (0.45, 0.04, 0.03), roughness=0.25, metallic=0.5),
