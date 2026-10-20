@@ -63,6 +63,10 @@ python tools/build_dataset.py                                 # id masks, previe
 python tools/export_hf.py                                     # Hugging Face dataset (local)
 ```
 
+`export_hf.py` splits by block: every camera standing in the test blocks
+(default `b12`, `b22`) goes to `test`, the rest to `train`, so near-identical
+views never land in both splits. A separate world is planned for later.
+
 `render_views.py --look assets` swaps in photographic skies and ground
 textures; geometry and traces are identical to the default procedural look.
 A new `--seed` builds a different town (block order, widths, props).
