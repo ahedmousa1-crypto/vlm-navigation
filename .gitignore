@@ -1,0 +1,29 @@
+# Local process notes
+PROCESS.md
+
+# Python
+__pycache__/
+*.py[cod]
+
+# Blender backups
+*.blend1
+
+# World build output (regenerable via blender/build_world.py)
+blender/world/*
+!blender/world/.gitkeep
+
+# Downloaded CC0 assets (re-fetch via tools/fetch_assets.py); keep license list
+blender/assets/*
+!blender/assets/.gitkeep
+!blender/assets/LICENSES.md
+
+# Rendered dataset (regenerable; published on Hugging Face)
+dataset/*
+!dataset/images/
+dataset/images/*
+!dataset/images/.gitkeep
+
+# Legacy generated renders (keep folder via .gitkeep)
+legacy/blender/test_renders/*
+!legacy/blender/test_renders/.gitkeep
+legacy/blender/batch_street_50/
