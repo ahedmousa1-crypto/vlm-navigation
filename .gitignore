@@ -27,3 +27,6 @@ dataset/images/*
 legacy/blender/test_renders/*
 !legacy/blender/test_renders/.gitkeep
 legacy/blender/batch_street_50/
+
+# Reports (Word documents shared directly, not part of the code)
+reports/
