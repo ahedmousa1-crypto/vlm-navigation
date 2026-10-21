@@ -125,9 +125,12 @@ def main():
     dataset = DatasetDict({name: Dataset.from_list(items, features=FEATURES) for name, items in splits.items()})
     print(dataset)
     print(f"test_blocks={sorted(test_blocks)} train={len(splits['train'])} test={len(splits['test'])}")
-    local = os.path.join(root, "work", "hf_export")
-    dataset.save_to_disk(local)
-    print("saved_local", local)
+    if not args.push:
+        # Local check only; skipped when pushing so a big release isn't stored twice on disk.
+        local = os.path.join(root, "work", "hf_export")
+        dataset.save_to_disk(local)
+        print("saved_local", local)
+        return 0
 
     if args.push:
         if not args.repo:

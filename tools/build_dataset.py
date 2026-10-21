@@ -26,15 +26,26 @@ PATH_COLORS = [(255, 40, 40), (40, 160, 255), (255, 200, 0)]
 
 
 def rgb_mask_to_ids(path):
+    """Class id per pixel. Exact color lookup first (the flat Workbench render is exact);
+    only pixels off by rounding get a nearest-color search, which keeps memory small."""
     rgb = np.asarray(Image.open(path).convert("RGB"), dtype=np.int32)
+    flat = rgb.reshape(-1, 3)
+    codes = (flat[:, 0] << 16) | (flat[:, 1] << 8) | flat[:, 2]
     palette = np.array([CLASSES[i][1] for i in sorted(CLASSES)], dtype=np.int32)
     ids = np.array(sorted(CLASSES), dtype=np.uint8)
-    flat = rgb.reshape(-1, 3)
-    # Nearest palette color; exact for the flat Workbench render, robust to +/-1 rounding.
-    dist = ((flat[:, None, :] - palette[None, :, :]) ** 2).sum(axis=2)
-    nearest = dist.argmin(axis=1)
-    worst = int(np.sqrt(dist[np.arange(len(flat)), nearest].max()))
-    return ids[nearest].reshape(rgb.shape[:2]), worst
+    pal_codes = (palette[:, 0] << 16) | (palette[:, 1] << 8) | palette[:, 2]
+    order = np.argsort(pal_codes)
+    pos = np.clip(np.searchsorted(pal_codes[order], codes), 0, len(order) - 1)
+    exact = pal_codes[order][pos] == codes
+    out = ids[order][pos]
+    worst = 0
+    if not exact.all():
+        off = flat[~exact]
+        dist = ((off[:, None, :] - palette[None, :, :]) ** 2).sum(axis=2)
+        nearest = dist.argmin(axis=1)
+        out[~exact] = ids[nearest]
+        worst = int(np.sqrt(dist[np.arange(len(off)), nearest].max()))
+    return out.reshape(rgb.shape[:2]), worst
 
 
 def draw_preview(image_path, record, out_path):
@@ -74,6 +85,8 @@ def check_record(record, image_size):
 def main():
     parser = argparse.ArgumentParser(description="Finish masks, previews, and checks for rendered samples.")
     parser.add_argument("--dataset", default=os.path.join(REPO_ROOT, "dataset"))
+    parser.add_argument("--max_previews", type=int, default=-1,
+                        help="Draw at most this many previews (-1 = all, 0 = none); checks always run on every record.")
     args = parser.parse_args()
     root = os.path.abspath(args.dataset)
     for sub in ("masks", "previews"):
@@ -100,6 +113,7 @@ def main():
             print(f"mask_color_drift {view} max_distance={worst}")
 
     failed = 0
+    drawn = 0
     per_view = {}
     for record in records:
         k = per_view.get(record["view"], 0)
@@ -115,7 +129,9 @@ def main():
         if problems:
             failed += 1
             print(f"check_failed {record['sample_id']} {record['view']}: {'; '.join(problems)}")
-        draw_preview(image_path, record, os.path.join(root, "previews", f"{record['view']}_{k}.png"))
+        if args.max_previews < 0 or drawn < args.max_previews:
+            draw_preview(image_path, record, os.path.join(root, "previews", f"{record['view']}_{k}.png"))
+            drawn += 1
 
     print(f"build_dataset records={len(records)} views={len(views)} failed_checks={failed}")
     return 1 if failed else 0
