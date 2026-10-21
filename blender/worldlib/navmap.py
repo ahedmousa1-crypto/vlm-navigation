@@ -62,6 +62,39 @@ class SceneTree:
         return None if loc is None else loc.z
 
 
+class VisTree:
+    """BVH over every mesh (overhead parts included) for line-of-sight checks from cameras.
+
+    One tree query is far faster than ``scene.ray_cast`` in a large scene; the
+    owner name of each polygon lets a hit on the target itself count as visible.
+    """
+
+    def __init__(self):
+        depsgraph = bpy.context.evaluated_depsgraph_get()
+        verts, polys, owners = [], [], []
+        for obj in bpy.context.scene.objects:
+            if obj.type != "MESH":
+                continue
+            evaluated = obj.evaluated_get(depsgraph)
+            mesh = evaluated.to_mesh()
+            matrix = obj.matrix_world
+            base = len(verts)
+            verts.extend(matrix @ vert.co for vert in mesh.vertices)
+            for poly in mesh.polygons:
+                polys.append([base + index for index in poly.vertices])
+                owners.append(obj.name)
+            evaluated.to_mesh_clear()
+        self.tree = BVHTree.FromPolygons(verts, polys)
+        self.owners = owners
+
+    def first_hit(self, origin, direction, distance):
+        """(hit distance, owner name) of the first surface along the ray, or (None, None)."""
+        loc, _normal, index, dist = self.tree.ray_cast(origin, direction, distance)
+        if loc is None:
+            return None, None
+        return dist, self.owners[index]
+
+
 def rasterize(tree, extent, cell=0.25):
     x0, x1, y0, y1 = extent
     nx = int(np.ceil((x1 - x0) / cell))

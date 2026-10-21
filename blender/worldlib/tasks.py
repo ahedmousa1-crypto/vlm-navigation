@@ -1,9 +1,15 @@
 """Turn one camera view into NaviTrace-style Human tasks (bpy).
 
-For every visible target (bench, door, crosswalk, terrace, ...) plan a Human
-path from the camera's feet, project it into the image, and keep it when the
-path is on screen and mostly unoccluded. Traces start where the path enters
-the bottom of the frame, like NaviTrace ground truth.
+For every visible target (bench, door, crosswalk, terrace, fountain, ...) plan
+a Human path from the bottom center of the image, project it into the image,
+and keep it when the path stays on screen and is mostly unoccluded. Each view
+yields up to one "Goal" task ("Go to the fountain") and one "Directions" task
+("Go straight for about 10 meters, then turn left and cross the bridge"),
+whose wording is read off the planned path's turns and surfaces.
+
+Targets are chosen against dataset-wide counts (``balance``), so common
+targets such as street lamps stay rare and stairs, ramps, animals, and
+crossings are favoured.
 """
 
 import math
@@ -21,32 +27,73 @@ from .scene_setup import RES_X, RES_Y
 MIN_DIST, MAX_DIST = 4.0, 32.0
 MAX_OCCLUDED = 0.15
 RDP_EPS_PX = 6.0
-MAX_TRACE_POINTS = 20
+# NaviTrace traces have about 6-15 points; ours are resampled along the true projected path.
+TRACE_MIN_PTS, TRACE_MAX_PTS, TRACE_PX_PER_PT = 6, 15, 70.0
 
+GO = ["Go to the {noun}{where}", "Walk to the {noun}{where}"]
 OBJECT_TARGETS = {
-    "bench": ["Go to the {noun}{where}", "Walk to the {noun}{where}", "Go sit on the {noun}{where}"],
-    "trash_can": ["Go to the {noun}{where}", "Walk over to the {noun}{where}"],
-    "bike": ["Go to the {noun}{where}", "Walk to the {noun}{where}"],
-    "planter": ["Go to the {noun}{where}", "Walk to the {noun}{where}"],
-    "door": ["Go to the {noun}{where}", "Walk to the {noun}{where}"],
+    "bench": GO + ["Go sit on the {noun}{where}"],
+    "trash_can": GO + ["Walk over to the {noun}{where}"],
+    "bike": GO,
+    "planter": GO,
+    "door": GO + ["Head to the {noun}{where}"],
     "street_lamp": ["Go to the {noun}{where}"],
-    "tree": ["Go to the {noun}{where}", "Walk to the {noun}{where}"],
-    "bush": ["Go to the {noun}{where}", "Walk over to the {noun}{where}"],
+    "tree": GO,
+    "bush": GO + ["Walk over to the {noun}{where}"],
     "cat": ["Walk toward the {noun}{where}", "Go to the {noun}{where}", "Walk over to the {noun}{where}"],
     "dog": ["Walk toward the {noun}{where}", "Go to the {noun}{where}", "Walk up to the {noun}{where}"],
-    "car": ["Go to the {noun}{where}", "Walk to the {noun}{where}"],
+    "car": GO,
+    "fountain": GO + ["Walk over to the {noun}{where}"],
+    "statue": GO,
+    "swings": GO + ["Go over to the {noun}{where}"],
+    "slide": GO,
+    "picnic_table": GO + ["Go sit at the {noun}{where}"],
+    "kiosk": GO,
+    "food_truck": GO + ["Walk up to the {noun}{where}"],
+    "bus_stop": GO + ["Go wait at the {noun}{where}"],
+    "bike_rack": GO,
+    "fire_hydrant": GO,
+    "vending_machine": GO,
+    "recycling_bin": GO,
+    "sculpture": GO,
+    "mailbox": GO,
+    "basketball_hoop": GO,
+    "skate_ramp": GO,
+    "wheelie_bin": GO,
 }
 BASE_NOUN = {
     "bench": "bench", "trash_can": "trash can", "bike": "parked bike", "planter": "planter",
     "door": "building entrance", "street_lamp": "street lamp", "tree": "tree", "bush": "bush",
-    "cat": "cat", "dog": "dog", "car": "car",
+    "cat": "cat", "dog": "dog", "car": "car", "fountain": "fountain", "statue": "statue",
+    "swings": "swings", "slide": "slide", "picnic_table": "picnic table", "kiosk": "kiosk",
+    "food_truck": "food truck", "bus_stop": "bus stop", "bike_rack": "bike rack",
+    "fire_hydrant": "fire hydrant", "vending_machine": "vending machine", "recycling_bin": "recycling bins",
+    "sculpture": "sculpture", "mailbox": "mailbox", "basketball_hoop": "basketball hoop",
+    "skate_ramp": "skate ramp", "wheelie_bin": "garbage bin",
+}
+# Relative weight per target kind when balancing the dataset (higher = picked more often).
+KIND_WEIGHT = {
+    "street_lamp": 0.15, "tree": 0.6, "bush": 0.6, "car": 0.6, "trash_can": 0.7, "planter": 0.7,
+    "terrace": 3.0, "platform": 3.0, "door": 1.6, "crosswalk": 1.6, "bridge": 2.0,
+    "cat": 1.8, "dog": 1.8, "fountain": 1.5, "swings": 1.3, "slide": 1.3,
 }
 RELATION_M = 2.5          # landmark must be this close to the target to be "beside" it
 RELATION_WORDS = (" beside the {}", " next to the {}", " near the {}")
 RELATION_RATE = 0.35      # share of already-unique targets that still get a landmark phrase, for variety
 DYNAMIC_KINDS = ("cat", "dog")
 CROSSWALK_TASKS = ["Cross the street", "Cross the street at the crosswalk", "Get to the other side of the street"]
+BRIDGE_TASKS = ["Cross the bridge", "Walk over the bridge", "Cross the pond on the bridge"]
 TERRACE_TASKS = ["Go up to the terrace{where}", "Get onto the raised terrace{where}"]
+PLATFORM_TASKS = ["Get up onto the platform{where}", "Go up to the top of the skate platform{where}"]
+UPPER_KINDS = ("terrace", "platform")
+TERRAIN_PHRASES = {
+    "crosswalk": "cross the street at the crosswalk",
+    "bridge": "cross the bridge",
+    "stairs_up": "take the stairs up",
+    "stairs_down": "take the stairs down",
+    "ramp_up": "take the ramp up",
+    "ramp_down": "take the ramp down",
+}
 
 VARIANT_CONTEXT = {
     "street": "Sidewalk along a street with a grass area behind it",
@@ -54,6 +101,9 @@ VARIANT_CONTEXT = {
     "narrow": "Narrow sidewalk between parked cars and row houses",
     "construction": "Sidewalk next to a construction site",
     "terrace": "Sidewalk next to a raised terrace with stairs and a ramp",
+    "neighborhood": "Residential street with houses, front lawns and driveways",
+    "park": "Park with paths, trees, a fountain, a pond and a playground",
+    "skate": "Skate park and basketball court",
 }
 
 
@@ -66,10 +116,20 @@ def in_frame(px, py, depth, margin=0.0):
     return depth > 0.05 and -margin <= px <= RES_X + margin and -margin <= py <= RES_Y + margin
 
 
-def visible_from(scene, depsgraph, cam_loc, point, target_names=None, tol=0.25):
-    """True when nothing blocks the line from the camera to ``point`` (or the first hit is a target)."""
+def visible_from(scene, depsgraph, cam_loc, point, target_names=None, tol=0.25, vis=None):
+    """True when nothing blocks the line from the camera to ``point`` (or the first hit is a target).
+
+    ``vis`` (navmap.VisTree) answers the same question much faster than ``scene.ray_cast``.
+    """
     direction = Vector(point) - cam_loc
     dist = direction.length
+    if vis is not None:
+        hit_dist, owner = vis.first_hit(cam_loc, direction.normalized(), dist)
+        if hit_dist is None:
+            return True
+        if target_names and owner in target_names:
+            return True
+        return hit_dist >= dist - tol
     hit, loc, _n, _i, obj, _m = scene.ray_cast(depsgraph, cam_loc, direction.normalized(), distance=dist)
     if not hit:
         return True
@@ -79,23 +139,59 @@ def visible_from(scene, depsgraph, cam_loc, point, target_names=None, tol=0.25):
     return (loc - cam_loc).length >= dist - tol
 
 
-def rdp(points, eps):
-    if len(points) < 3:
-        return list(points)
-    (x0, y0), (x1, y1) = points[0], points[-1]
+def rdp_indices(points, eps, lo=0, hi=None):
+    """Indices of the Ramer-Douglas-Peucker simplification of points[lo..hi]."""
+    hi = len(points) - 1 if hi is None else hi
+    if hi - lo < 2:
+        return [lo, hi]
+    (x0, y0), (x1, y1) = points[lo], points[hi]
     dx, dy = x1 - x0, y1 - y0
     norm = math.hypot(dx, dy) or 1e-9
-    best_i, best_d = 0, -1.0
-    for i in range(1, len(points) - 1):
+    best_i, best_d = lo, -1.0
+    for i in range(lo + 1, hi):
         px, py = points[i]
         d = abs(dy * px - dx * py + x1 * y0 - y1 * x0) / norm
         if d > best_d:
             best_i, best_d = i, d
     if best_d <= eps:
-        return [points[0], points[-1]]
-    left = rdp(points[: best_i + 1], eps)
-    right = rdp(points[best_i:], eps)
-    return left[:-1] + right
+        return [lo, hi]
+    return rdp_indices(points, eps, lo, best_i)[:-1] + rdp_indices(points, eps, best_i, hi)
+
+
+def simplify_trace(dense):
+    """Pixel trace from a dense projected path: keep the corners, then add points evenly along
+    each stretch until the trace has a NaviTrace-like 6-15 points."""
+    if len(dense) < 2:
+        return [list(p) for p in dense]
+    eps = RDP_EPS_PX
+    corners = rdp_indices(dense, eps)
+    while len(corners) > TRACE_MAX_PTS:
+        eps *= 1.5
+        corners = rdp_indices(dense, eps)
+    seg = [math.hypot(dense[i + 1][0] - dense[i][0], dense[i + 1][1] - dense[i][1]) for i in range(len(dense) - 1)]
+    cum = [0.0]
+    for length in seg:
+        cum.append(cum[-1] + length)
+    total = cum[-1]
+    target = max(len(corners), min(TRACE_MAX_PTS, max(TRACE_MIN_PTS, round(total / TRACE_PX_PER_PT) + 1)))
+    extra = target - len(corners)
+
+    def point_at(arc):
+        i = max(0, min(len(seg) - 1, next((k for k in range(len(seg)) if cum[k + 1] >= arc), len(seg) - 1)))
+        t = 0.0 if seg[i] == 0 else (arc - cum[i]) / seg[i]
+        return (dense[i][0] + (dense[i + 1][0] - dense[i][0]) * t, dense[i][1] + (dense[i + 1][1] - dense[i][1]) * t)
+
+    out = [dense[corners[0]]]
+    spans = [(cum[a], cum[b]) for a, b in zip(corners, corners[1:])]
+    shares = [(b - a) / total * extra if total > 0 else 0.0 for a, b in spans]
+    counts = [int(s) for s in shares]
+    for k in sorted(range(len(shares)), key=lambda k: shares[k] - counts[k], reverse=True)[: extra - sum(counts)]:
+        counts[k] += 1
+    for (a, b), n, end in zip(spans, counts, corners[1:]):
+        for j in range(1, n + 1):
+            out.append(point_at(a + (b - a) * j / (n + 1)))
+        out.append(dense[end])
+    return [[round(x, 2), round(y, 2)] for x, y in out]
 
 
 def direction_word(px):
@@ -104,6 +200,10 @@ def direction_word(px):
     if px > RES_X * 0.64:
         return " on the right"
     return " ahead"
+
+
+def wrap(angle):
+    return (angle + math.pi) % (2 * math.pi) - math.pi
 
 
 def landmark_phrase(cand, group, landmarks, rng):
@@ -172,20 +272,26 @@ def disambiguate(cands, landmarks, rng):
 def noun_of(obj, lamps_on=False):
     category = obj.get("category")
     color = obj.get("color_name")
-    if category in ("cat", "dog", "car") and color:
-        return f"{color} {category}"
+    if category in ("cat", "dog", "car", "food_truck") and color:
+        return f"{color} {BASE_NOUN[category]}"
     if category == "tree" and obj.get("tree_style") == "conifer":
         return "pine tree"
     if category == "street_lamp" and lamps_on:
         return "lit street lamp"
+    if category == "door" and obj.get("house_color"):
+        return f"front door of the {obj['house_color']} house"
     return BASE_NOUN.get(category, category.replace("_", " "))
 
 
 class ViewTasks:
-    def __init__(self, scene, cam, planner, layout, rng=None, lighting=None):
-        """``lighting``: the preset info from lighting.Lighting.apply (None = day)."""
+    def __init__(self, scene, cam, planner, layout, rng=None, lighting=None, balance=None, vis=None):
+        """``lighting``: preset info from lighting.Lighting.apply (None = day).
+        ``balance``: dict of target-kind counts so far, shared across views (updated by the caller).
+        ``vis``: a navmap.VisTree for fast line-of-sight checks (built once per run)."""
+        self.vis = vis
         self.lighting = lighting or {"preset": "day", "lamps_on": False}
         self.lamps_on = self.lighting["lamps_on"]
+        self.balance = balance if balance is not None else {}
         self.scene = scene
         self.cam = cam
         self.planner = planner
@@ -221,38 +327,40 @@ class ViewTasks:
 
     # ---- trace from a world path --------------------------------------
 
-    def trace(self, points, target_names=()):
-        """Pixel trace for world points (starting at the bottom center), or (None, reason)."""
+    def dense_pixels(self, points):
+        """Projected pixels of world points, or None if any point is off screen."""
         pix = [project(self.scene, self.cam, p) for p in points]
         # The start cell can sit a few pixels below the frame; anything more means it is not in view.
         if any(not (d > 0.05 and -2 <= px <= RES_X + 2 and -2 <= py <= RES_Y + 25) for px, py, d in pix):
+            return None
+        return [(min(max(px, 0.0), RES_X - 0.5), min(max(py, 0.0), RES_Y - 0.5)) for px, py, _d in pix]
+
+    def trace(self, points, target_names=()):
+        """Pixel trace for world points (starting at the bottom center), or (None, reason)."""
+        dense = self.dense_pixels(points)
+        if dense is None:
             return None, "leaves the frame"
         occluded = 0
         for (x, y, z) in points[1:]:
-            if not visible_from(self.scene, self.depsgraph, self.cam_loc, (x, y, z + 0.05), target_names):
+            if not visible_from(self.scene, self.depsgraph, self.cam_loc, (x, y, z + 0.05), target_names, vis=self.vis):
                 occluded += 1
         if occluded > MAX_OCCLUDED * len(points):
             return None, f"occluded {occluded}/{len(points)}"
-        trace = [(min(max(px, 0.0), RES_X - 0.5), min(max(py, 0.0), RES_Y - 0.5)) for px, py, _d in pix]
-        simple = rdp(trace, RDP_EPS_PX)
-        eps = RDP_EPS_PX
-        while len(simple) > MAX_TRACE_POINTS:
-            eps *= 1.5
-            simple = rdp(trace, eps)
-        if len(simple) < 2 or math.hypot(simple[-1][0] - simple[0][0], simple[-1][1] - simple[0][1]) < 40:
+        if math.hypot(dense[-1][0] - dense[0][0], dense[-1][1] - dense[0][1]) < 40:
             return None, "too short on screen"
-        return [[round(px, 2), round(py, 2)] for px, py in simple], "ok"
+        return simplify_trace(dense), "ok"
 
     def plan(self, goal_xy, banned=()):
+        """(points, cost, corners): resampled world path, its cost, and its smoothed corner points."""
         goal = self.planner.nearest_walkable(goal_xy[0], goal_xy[1], radius=1.5, max_cost=1.6, prefer=self.start_xy)
         if self.start is None or goal is None:
-            return None, None
+            return None, None, None
         cells = self.planner.astar(self.start, goal, banned_classes=banned)
         if cells is None:
-            return None, None
+            return None, None, None
         cells = self.planner.smooth(cells)
-        points = self.planner.to_points(cells)
-        return points, self.planner.path_cost(cells)
+        corners = [self.planner.to_world(*c) for c in cells]
+        return self.planner.to_points(cells), self.planner.path_cost(cells), corners
 
     # ---- candidates ----------------------------------------------------
 
@@ -271,15 +379,17 @@ class ViewTasks:
             px, py, depth = project(self.scene, self.cam, center)
             if not in_frame(px, py, depth, margin=-RES_X * 0.04):
                 continue
-            if not visible_from(self.scene, self.depsgraph, self.cam_loc, center, {obj.name}):
+            if not visible_from(self.scene, self.depsgraph, self.cam_loc, center, {obj.name}, vis=self.vis):
                 continue
-            cand = {"kind": category, "noun": noun_of(obj, self.lamps_on), "object": obj.name, "xy": center[:2], "px": px,
-                    "dist": dist}
+            cand = {"kind": category, "noun": noun_of(obj, self.lamps_on), "object": obj.name, "xy": center[:2],
+                    "px": px, "dist": dist}
             landmarks.append(cand)
             if obj.get("in_traffic") or not MIN_DIST <= dist <= MAX_DIST:
                 continue  # cars stopped in the lanes are landmarks, never goals (the goal would be on the road)
             if category == "door":
                 goal = tuple(obj["front"])
+                if obj.get("stairs") and obj.get("ramp"):
+                    cand["alts"] = (obj["stairs"], obj["ramp"])  # porch: steps or ramp both lead up
             elif category == "bench":
                 # In front of the seat (benches face local -Y), not behind the backrest.
                 front = obj.matrix_world @ Vector((0.0, -0.8, 0.0))
@@ -289,26 +399,29 @@ class ViewTasks:
             targets.append({**cand, "goal": goal})
         return targets, landmarks
 
-    def crosswalk_candidates(self):
+    def crossing_candidates(self, category, max_near=18.0):
+        """Crosswalks and bridges: the goal is the far end, and the path must use the crossing."""
         out = []
         for obj in self.scene.objects:
-            if obj.get("category") != "crosswalk":
+            if obj.get("category") != category or "end_a" not in obj.keys():
                 continue
             a, b = tuple(obj["end_a"]), tuple(obj["end_b"])
             da = math.hypot(a[0] - self.feet[0], a[1] - self.feet[1])
             db = math.hypot(b[0] - self.feet[0], b[1] - self.feet[1])
-            near, far = (a, b) if da < db else (b, a)
-            if min(da, db) > 18.0 or max(da, db) > MAX_DIST:
+            far = b if da < db else a
+            if min(da, db) > max_near or max(da, db) > MAX_DIST:
                 continue
             box = world_aabb(obj)
-            center = ((box[0] + box[1]) / 2, (box[2] + box[3]) / 2, 0.02)
+            center = ((box[0] + box[1]) / 2, (box[2] + box[3]) / 2, box[5])
             px, py, depth = project(self.scene, self.cam, center)
             if not in_frame(px, py, depth, margin=-RES_X * 0.04):
                 continue
-            out.append({"kind": "crosswalk", "object": obj.name, "goal": far, "px": px, "dist": max(da, db)})
+            out.append({"kind": category, "object": obj.name, "goal": far, "px": px, "dist": max(da, db),
+                        "noun": BASE_NOUN.get(category, category)})
         return out
 
-    def terrace_candidates(self):
+    def upper_level_candidates(self):
+        """Raised places reached by both stairs and a ramp: the terrace and the skate platforms."""
         out = []
         for block in self.layout["blocks"].values():
             terrace = block.get("terrace")
@@ -318,70 +431,164 @@ class ViewTasks:
             depth = lay.N_STEPS * lay.TREAD
             s_mid = (terrace["stairs_s"][0] + terrace["ramp_s"][1]) / 2
             gx, gy = lay.side_point(block, terrace["side"], s_mid, ring + depth + 2.5)
+            out.append(("terrace", f"surface_stairs_{block['id']}", f"surface_ramp_{block['id']}", (gx, gy), terrace["z"]))
+        for platform in self.layout.get("platforms", []):
+            out.append(("platform", platform["stairs"], platform["ramp"], tuple(platform["goal"]), platform["z"]))
+        cands = []
+        for kind, stairs, ramp, (gx, gy), z in out:
             dist = math.hypot(gx - self.feet[0], gy - self.feet[1])
             if not MIN_DIST <= dist <= MAX_DIST:
                 continue
-            stairs = self.scene.objects.get(f"surface_stairs_{block['id']}")
-            ramp = self.scene.objects.get(f"surface_ramp_{block['id']}")
-            if stairs is None or ramp is None:
+            if self.scene.objects.get(stairs) is None or self.scene.objects.get(ramp) is None:
                 continue
-            px, py, d = project(self.scene, self.cam, (gx, gy, terrace["z"]))
+            px, py, d = project(self.scene, self.cam, (gx, gy, z))
             if not in_frame(px, py, d, margin=-RES_X * 0.04):
                 continue
-            out.append({"kind": "terrace", "object": stairs.name, "ramp": ramp.name, "goal": (gx, gy),
-                        "px": px, "dist": dist, "block": block["id"]})
-        return out
+            cands.append({"kind": kind, "object": stairs, "alts": (stairs, ramp), "goal": (gx, gy), "px": px,
+                          "dist": dist, "noun": kind})
+        return cands
 
-    # ---- tasks ---------------------------------------------------------
+    # ---- path checks ----------------------------------------------------
 
-    def build_task(self, cand):
-        if cand["kind"] == "terrace":
-            paths = []
-            targets = {cand["object"], cand["ramp"]}
-            for banned in ((CLASS_ID["ramp"],), (CLASS_ID["stairs"],)):
-                points, cost = self.plan(cand["goal"], banned=banned)
-                if points is None:
-                    continue
-                trace, _reason = self.trace(points, targets)
-                if trace:
-                    paths.append((cost, trace, points))
-            if not paths:
-                return None
-            best = min(cost for cost, _t, _p in paths)
-            # Stairs and ramp are both valid for a Human when neither is a big detour.
-            paths = [p for p in paths if p[0] <= best * 1.6]
-            template = self.rng.choice(TERRACE_TASKS)
-            return self.finish(cand, template, paths)
-
-        points, cost = self.plan(cand["goal"])
+    def single_path(self, cand):
+        """(cost, trace, points, corners) for a candidate, or None when it is not a sensible Human task."""
+        points, cost, corners = self.plan(cand["goal"])
         if points is None:
             return None
         names = self.planner.classes_along(points)
         road_steps = sum(1 for name in names if name in ("road", "bike_lane", "lane_marking"))
         if road_steps * 0.25 > 0.6:
-            return None  # would need to walk on the road; not a sensible Human task
-        if cand["kind"] == "crosswalk" and "crosswalk" not in names:
+            return None  # would need to walk on the road
+        if cand["kind"] in ("crosswalk", "bridge") and cand["kind"] not in names:
             return None
         trace, _reason = self.trace(points, {cand["object"]})
         if not trace:
             return None
-        if cand["kind"] == "crosswalk":
-            template = self.rng.choice(CROSSWALK_TASKS)
-        else:
-            template = self.rng.choice(OBJECT_TARGETS[cand["kind"]])
-        return self.finish(cand, template, [(cost, trace, points)])
+        return (cost, trace, points, corners)
 
-    def finish(self, cand, template, paths):
-        task = template.format(noun=cand.get("noun", ""), where=cand.get("where", direction_word(cand["px"])))
+    def two_paths(self, cand):
+        """Stairs-only and ramp-only paths to a raised goal; both kept when neither is a big detour."""
+        stairs, ramp = cand["alts"]
+        paths = []
+        for banned in ((CLASS_ID["ramp"],), (CLASS_ID["stairs"],)):
+            points, cost, corners = self.plan(cand["goal"], banned=banned)
+            if points is None:
+                continue
+            trace, _reason = self.trace(points, {stairs, ramp, cand["object"]})
+            if trace:
+                paths.append((cost, trace, points, corners))
+        if not paths:
+            return None
+        best = min(p[0] for p in paths)
+        return [p for p in paths if p[0] <= best * 1.6]
+
+    # ---- wording --------------------------------------------------------
+
+    def goal_task(self, cand, paths):
+        kind = cand["kind"]
+        if kind == "crosswalk":
+            template = self.rng.choice(CROSSWALK_TASKS)
+        elif kind == "bridge":
+            template = self.rng.choice(BRIDGE_TASKS)
+        elif kind == "terrace":
+            template = self.rng.choice(TERRACE_TASKS)
+        elif kind == "platform":
+            template = self.rng.choice(PLATFORM_TASKS)
+        else:
+            template = self.rng.choice(OBJECT_TARGETS[kind])
+        text = template.format(noun=cand.get("noun", ""), where=cand.get("where", direction_word(cand["px"])))
+        return self.finish(cand, text, paths, "Goal")
+
+    def directions_task(self, cand, path):
+        """Turn-by-turn wording of one path, or None when the path has no turn or terrain event to describe."""
+        _cost, _trace, points, corners = path
+        clauses = self.describe(points, corners)
+        if clauses is None:
+            return None
+        kind = cand["kind"]
+        if kind in OBJECT_TARGETS:
+            clauses.append(f"continue to the {cand['noun']}")
+        elif kind in UPPER_KINDS:
+            clauses.append("continue up onto the " + ("terrace" if kind == "terrace" else "platform"))
+        text = clauses[0][0].upper() + clauses[0][1:]
+        for clause in clauses[1:]:
+            text += ", then " + clause
+        return self.finish(cand, text, [path], "Directions")
+
+    def describe(self, points, corners):
+        """Clauses like ["go straight for about 10 meters", "turn left", "cross the bridge"]."""
+        if len(corners) < 2:
+            return None
+        # Merge nearly straight corners and drop very short legs.
+        legs = []
+        for (x0, y0), (x1, y1) in zip(corners, corners[1:]):
+            length = math.hypot(x1 - x0, y1 - y0)
+            if length < 0.3:
+                continue
+            angle = math.atan2(y1 - y0, x1 - x0)
+            if legs and (abs(wrap(angle - legs[-1][0])) < math.radians(25) or length < 1.5):
+                a0, l0, s0, e0 = legs[-1]
+                legs[-1] = (a0 if l0 >= length else angle, l0 + length, s0, (x1, y1))
+            else:
+                legs.append((angle, length, (x0, y0), (x1, y1)))
+        if not legs or len(legs) > 4:
+            return None
+        events = self.terrain_events(points, legs)
+        if len(legs) < 2 and not events:
+            return None  # a straight walk with nothing on the way is just a Goal task
+        clauses = []
+        rel = wrap(legs[0][0] - self.heading)
+        first = "go straight" if abs(rel) < math.radians(25) else ("head left" if rel > 0 else "head right")
+        if legs[0][1] >= 6.0:
+            first += f" for about {max(5, int(round(legs[0][1] / 5.0)) * 5)} meters"
+        clauses.append(first)
+        clauses.extend(events.get(0, []))
+        for k in range(1, len(legs)):
+            turn = wrap(legs[k][0] - legs[k - 1][0])
+            side = "left" if turn > 0 else "right"
+            clause = ("bear " if abs(turn) < math.radians(60) else "turn ") + side
+            if legs[k][1] >= 8.0 and k < len(legs) - 1:
+                clause += f" and walk about {int(round(legs[k][1] / 5.0)) * 5} meters"
+            clauses.append(clause)
+            clauses.extend(events.get(k, []))
+        return clauses
+
+    def terrain_events(self, points, legs):
+        """Crossings, bridges, stairs and ramps, keyed by the leg they happen on (first occurrence each)."""
+        events, seen = {}, set()
+        prev_name, prev_z = None, None
+        for x, y, z in points:
+            name = self.planner.classes_along([(x, y, z)])[0]
+            key = None
+            if name in ("crosswalk", "bridge") and name != prev_name:
+                key = name
+            elif name in ("stairs", "ramp") and name != prev_name and prev_z is not None:
+                ahead = [p[2] for p in points if math.hypot(p[0] - x, p[1] - y) < 2.5]
+                key = f"{name}_{'up' if max(ahead) > z + 0.1 else 'down'}"
+            if key and key not in seen:
+                seen.add(key)
+                leg = min(range(len(legs)), key=lambda k: self._dist_to_leg((x, y), legs[k]))
+                events.setdefault(leg, []).append(TERRAIN_PHRASES[key])
+            prev_name, prev_z = name, z
+        return events
+
+    @staticmethod
+    def _dist_to_leg(p, leg):
+        _a, _l, (x0, y0), (x1, y1) = leg
+        dx, dy = x1 - x0, y1 - y0
+        t = max(0.0, min(1.0, ((p[0] - x0) * dx + (p[1] - y0) * dy) / ((dx * dx + dy * dy) or 1e-9)))
+        return math.hypot(p[0] - (x0 + t * dx), p[1] - (y0 + t * dy))
+
+    def finish(self, cand, text, paths, task_type):
         names = set()
-        for _cost, _trace, points in paths:
-            names.update(self.planner.classes_along(points))
+        for path in paths:
+            names.update(self.planner.classes_along(path[2]))
         categories = []
         if "crosswalk" in names:
             categories.append("Social Norms")
-        if names & {"stairs", "ramp", "curb_ramp"}:
+        if names & {"stairs", "ramp", "curb_ramp", "bridge"}:
             categories.append("Geometric Terrain")
-        if cand["kind"] == "terrace":
+        if len(paths) > 1 or "ramp" in names:
             categories.append("Accessibility")
         if self.passes_obstacles(paths[0][2], cand.get("object")):
             categories.append("Stationary Obstacle")
@@ -392,11 +599,12 @@ class ViewTasks:
         if not categories:
             categories.append("Semantic Terrain")
         return {
-            "task": task,
+            "task": text,
+            "task_type": task_type,
             "target_kind": cand["kind"],
             "target_object": cand["object"],
-            "paths": [trace for _cost, trace, _points in paths],
-            "world_paths": [[[round(v, 3) for v in p] for p in points] for _cost, _trace, points in paths],
+            "paths": [p[1] for p in paths],
+            "world_paths": [[[round(v, 3) for v in q] for q in p[2]] for p in paths],
             "category": categories,
             "path_surfaces": sorted(names),
         }
@@ -425,26 +633,40 @@ class ViewTasks:
                     return True
         return False
 
+    # ---- choosing tasks ---------------------------------------------------
+
+    def score(self, kind):
+        """Lower = more needed: dataset count so far divided by the kind's weight, with a little jitter."""
+        return (self.balance.get(kind, 0) + 1) / KIND_WEIGHT.get(kind, 1.0) * (1.0 + 0.3 * self.rng.random())
+
     def generate(self, max_tasks=2):
+        """Up to one Goal and one Directions task, for different targets."""
         if self.start is None:
             return []
         targets, self.landmarks = self.object_candidates()
         cands = (disambiguate(targets, self.landmarks, self.rng)
-                 + self.crosswalk_candidates() + self.terrace_candidates())
-        self.rng.shuffle(cands)
-        # Terrain and crossings first, then animals and entrances; lamps last.
-        priority = {"terrace": 0, "crosswalk": 1, "cat": 2, "dog": 2, "door": 3, "street_lamp": 5}
-        cands.sort(key=lambda c: priority.get(c["kind"], 4))
-        tasks, kinds = [], set()
-        for cand in cands:
-            if cand["kind"] in kinds:
-                continue
-            task = self.build_task(cand)
-            if task:
-                tasks.append(task)
-                kinds.add(cand["kind"])
-            if len(tasks) >= max_tasks:
-                break
+                 + self.crossing_candidates("crosswalk") + self.crossing_candidates("bridge", max_near=14.0)
+                 + self.upper_level_candidates())
+        cands.sort(key=lambda c: self.score(c["kind"]))
+        tasks, used = [], set()
+        want = ["Goal", "Directions"][:max_tasks] if max_tasks > 1 else ["Goal"]
+        for task_type in want:
+            for cand in cands:
+                if cand["object"] in used or len(tasks) >= max_tasks:
+                    continue
+                if task_type == "Goal":
+                    paths = self.two_paths(cand) if "alts" in cand else None
+                    if not paths:
+                        path = self.single_path(cand)
+                        paths = [path] if path else None
+                    task = self.goal_task(cand, paths) if paths else None
+                else:
+                    path = self.single_path(cand)
+                    task = self.directions_task(cand, path) if path else None
+                if task:
+                    tasks.append(task)
+                    used.add(cand["object"])
+                    break
         return tasks
 
     def context(self, tasks):

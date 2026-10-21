@@ -114,8 +114,32 @@ def build_materials():
         "barrier_white": flat_material("mat_barrier_white", (0.92, 0.92, 0.90), roughness=0.5),
         "hoarding": layered_material("mat_hoarding", (0.45, 0.36, 0.22), (0.70, 0.60, 0.42), 1.8, 8.0, 0.7, 0.9, 0.2),
         "lamp_glass": flat_material("mat_lamp_glass", (0.90, 0.88, 0.75), roughness=0.3),
+        # Phase 2 blocks.
+        "house_white": layered_material("mat_house_white", (0.70, 0.70, 0.68), (0.90, 0.90, 0.88), 0.6, 10.0, 0.75, 0.95, 0.2),
+        "house_yellow": layered_material("mat_house_yellow", (0.70, 0.60, 0.30), (0.90, 0.80, 0.45), 0.6, 10.0, 0.75, 0.95, 0.2),
+        "house_blue": layered_material("mat_house_blue", (0.30, 0.42, 0.58), (0.48, 0.60, 0.75), 0.6, 10.0, 0.75, 0.95, 0.2),
+        "house_red": layered_material("mat_house_red", (0.45, 0.14, 0.10), (0.62, 0.26, 0.20), 0.6, 10.0, 0.75, 0.95, 0.2),
+        "house_gray": layered_material("mat_house_gray", (0.38, 0.38, 0.40), (0.58, 0.58, 0.60), 0.6, 10.0, 0.75, 0.95, 0.2),
+        "house_green": layered_material("mat_house_green", (0.32, 0.45, 0.32), (0.50, 0.63, 0.48), 0.6, 10.0, 0.75, 0.95, 0.2),
+        "roof_tile": layered_material("mat_roof_tile", (0.25, 0.08, 0.05), (0.45, 0.18, 0.12), 1.5, 18.0, 0.7, 0.9, 0.4),
+        "park_path": layered_material("mat_park_path", (0.45, 0.38, 0.28), (0.72, 0.64, 0.50), 1.2, 22.0, 0.8, 0.98, 0.5),
+        "concrete": layered_material("mat_concrete", (0.42, 0.42, 0.44), (0.66, 0.66, 0.68), 0.9, 16.0, 0.55, 0.85, 0.3),
+        "rubber": layered_material("mat_rubber", (0.35, 0.10, 0.07), (0.55, 0.20, 0.14), 1.6, 30.0, 0.85, 1.0, 0.4),
+        "court": flat_material("mat_court", (0.12, 0.30, 0.50), roughness=0.7),
+        "court_line": flat_material("mat_court_line", (0.95, 0.95, 0.95), roughness=0.6),
+        "water": flat_material("mat_water", (0.04, 0.12, 0.20), roughness=0.05, metallic=0.2),
+        "stone": layered_material("mat_stone", (0.40, 0.38, 0.35), (0.62, 0.60, 0.56), 1.4, 14.0, 0.7, 0.95, 0.5),
+        "bronze": flat_material("mat_bronze", (0.35, 0.22, 0.10), roughness=0.35, metallic=0.8),
+        "paint_red": flat_material("mat_paint_red", (0.70, 0.05, 0.04), roughness=0.4),
+        "paint_yellow": flat_material("mat_paint_yellow", (0.90, 0.70, 0.05), roughness=0.4),
+        "paint_blue": flat_material("mat_paint_blue", (0.05, 0.20, 0.60), roughness=0.4),
+        "paint_green": flat_material("mat_paint_green", (0.05, 0.40, 0.20), roughness=0.4),
+        "paint_orange": flat_material("mat_paint_orange", (0.90, 0.40, 0.05), roughness=0.4),
+        "paint_white": flat_material("mat_paint_white", (0.88, 0.88, 0.86), roughness=0.4),
+        "paint_black": flat_material("mat_paint_black", (0.04, 0.04, 0.045), roughness=0.5),
     }
 
 
 CAR_PAINTS = ("car_red", "car_blue", "car_white", "car_gray", "car_black")
 FACADES = ("facade_light", "facade_brick", "facade_gray", "facade_beige")
+HOUSE_PAINTS = {color: f"house_{color}" for color in ("white", "yellow", "blue", "red", "gray", "green")}

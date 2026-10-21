@@ -141,7 +141,9 @@ class Lighting:
 
     # ---- apply ---------------------------------------------------------
 
-    def apply(self, name):
+    def apply(self, name, near=None, radius=70.0):
+        """Apply a preset. With ``near`` (x, y), only lamp lights within ``radius`` m are switched on;
+        distant lamps barely light the frame but each one costs shadow memory and render time."""
         p = PRESETS[name]
         if self.sun is not None:
             elev, azim = math.radians(p["sun_elev"]), math.radians(p["sun_azim"])
@@ -164,7 +166,8 @@ class Lighting:
         if p["lamps"]:
             self._ensure_lamp_lights()
         for light in self.lamp_lights:
-            light.hide_render = not p["lamps"]
+            far = near is not None and math.hypot(light.location.x - near[0], light.location.y - near[1]) > radius
+            light.hide_render = not p["lamps"] or far
         glass = bpy.data.materials.get("mat_lamp_glass")
         if glass is not None:
             bsdf = glass.node_tree.nodes.get("Principled BSDF")

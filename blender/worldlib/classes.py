@@ -38,12 +38,45 @@ CLASSES = {
     29: ("bush", (80, 200, 120)),
     30: ("cat", (255, 0, 255)),
     31: ("dog", (180, 0, 255)),
+    # Phase 2: new ground surfaces (ids appended so Phase 1 masks keep their meaning).
+    32: ("driveway", (170, 170, 160)),
+    33: ("park_path", (210, 180, 140)),
+    34: ("playground", (190, 80, 60)),
+    35: ("water", (30, 90, 200)),
+    36: ("bridge", (150, 110, 70)),
+    37: ("court", (60, 120, 190)),
+    38: ("skate_area", (185, 185, 195)),
+    39: ("porch", (160, 140, 120)),
+    # Phase 2: new objects.
+    40: ("house", (140, 80, 180)),
+    41: ("fountain", (90, 200, 230)),
+    42: ("statue", (200, 200, 120)),
+    43: ("swings", (255, 200, 0)),
+    44: ("slide", (255, 100, 160)),
+    45: ("picnic_table", (150, 90, 40)),
+    46: ("kiosk", (0, 150, 120)),
+    47: ("food_truck", (230, 230, 60)),
+    48: ("bus_stop", (60, 60, 160)),
+    49: ("bike_rack", (120, 120, 120)),
+    50: ("fire_hydrant", (220, 20, 20)),
+    51: ("signpost", (20, 140, 60)),
+    52: ("vending_machine", (200, 40, 120)),
+    53: ("recycling_bin", (40, 160, 220)),
+    54: ("sculpture", (180, 120, 40)),
+    55: ("mailbox", (40, 40, 110)),
+    56: ("hedge", (30, 110, 40)),
+    57: ("skate_ramp", (130, 130, 150)),
+    58: ("rail", (90, 90, 90)),
+    59: ("ledge", (160, 160, 170)),
+    60: ("basketball_hoop", (240, 120, 30)),
+    61: ("wheelie_bin", (20, 90, 50)),
 }
 CLASS_ID = {name: index for index, (name, _rgb) in CLASSES.items()}
 
 GROUND_TYPES = {
     "road", "bike_lane", "crosswalk", "curb_ramp", "curb", "sidewalk", "plaza",
     "grass", "terrace", "stairs", "ramp", "tree_pit", "lane_marking",
+    "driveway", "park_path", "playground", "water", "bridge", "court", "skate_area", "porch",
 }
 
 # Human walking cost per ground class; missing classes are not walkable.
@@ -63,6 +96,14 @@ HUMAN_COST = {
     "bike_lane": 30.0,
     "road": 60.0,
     "lane_marking": 60.0,
+    "park_path": 1.0,
+    "bridge": 1.0,
+    "porch": 1.0,
+    "skate_area": 1.0,
+    "driveway": 1.2,
+    "playground": 1.3,
+    "court": 1.3,
+    # water is deliberately absent: not walkable
 }
 MAX_STEP_M = 0.2  # tallest height change a Human crosses between neighbouring cells
 

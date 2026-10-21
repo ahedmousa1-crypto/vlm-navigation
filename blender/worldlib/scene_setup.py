@@ -91,6 +91,7 @@ def configure_eevee(scene, samples=48):
         ("shadow_ray_count", 2),
         ("use_fast_gi", True),
         ("fast_gi_ray_count", 2),
+        ("shadow_pool_size", "1024"),  # the bigger town overflows the default shadow memory
     ):
         if hasattr(eevee, attr):
             setattr(eevee, attr, value)

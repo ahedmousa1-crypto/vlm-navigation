@@ -51,7 +51,7 @@ def ground_contact_failures(tree):
     failures = []
     checked = 0
     for obj in bpy.context.scene.objects:
-        if obj.get("surface_type") != "obstacle":
+        if obj.get("surface_type") != "obstacle" or obj.get("qa_skip"):
             continue
         checked += 1
         box = world_aabb(obj)

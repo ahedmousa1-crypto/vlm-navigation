@@ -33,6 +33,7 @@ from trace_format import empty_ground_truth, project_trace_to_pixels, set_embodi
 from worldlib.assets_look import AssetLook  # noqa: E402
 from worldlib.classes import CLASSES, class_for  # noqa: E402
 from worldlib.lighting import PRESETS, Lighting, preset_for  # noqa: E402
+from worldlib.navmap import VisTree  # noqa: E402
 from worldlib.planner import HumanPlanner  # noqa: E402
 from worldlib.scene_setup import RES_X, RES_Y, configure_eevee, configure_mask_render  # noqa: E402
 from worldlib.tasks import ViewTasks  # noqa: E402
@@ -58,6 +59,8 @@ def parse_args():
     parser.add_argument("--max_tasks", type=int, default=2, help="Tasks (samples) per view.")
     parser.add_argument("--samples", type=int, default=48, help="EEVEE render samples.")
     parser.add_argument("--skip_existing", action="store_true", help="Skip views that already have an image.")
+    parser.add_argument("--skip_done", action="store_true",
+                        help="Skip views that already have records in samples.jsonl (for rendering in batches).")
     parser.add_argument("--look", choices=("procedural", "assets"), default="procedural",
                         help="'assets' swaps in Poly Haven HDRI skies and ground textures (tools/fetch_assets.py).")
     parser.add_argument("--lighting", choices=("mix",) + tuple(PRESETS), default="mix",
@@ -111,7 +114,8 @@ def make_record(cam, layout, view_tasks, task, index, look):
         "ground_truth": ground_truth,
         "category": task["category"],
         "context": view_tasks.context([task]),
-        "metadata": {**METADATA, "weather_conditions": look["weather"], "lighting_conditions": look["lighting"]},
+        "metadata": {**METADATA, "weather_conditions": look["weather"], "lighting_conditions": look["lighting"],
+                     "task_type": task.get("task_type", "Goal")},
         "synthetic": {
             "look": look["name"],
             "hdri": look["hdri"],
@@ -156,11 +160,12 @@ def main():
         cams = [cam for cam in cams if cam.name in set(args.views)]
     if args.skip_existing:
         cams = [cam for cam in cams if not os.path.isfile(os.path.join(out_dir, "images", cam.name + ".png"))]
-    if args.limit:
+    if args.limit and not args.skip_done:  # with --skip_done the limit applies after skipping
         cams = cams[: args.limit]
     print(f"render_views count={len(cams)} out={out_dir}")
 
     assign_mask_colors()
+    vis = VisTree()
     asset_look = None
     lighting = None
     if args.look == "assets":
@@ -170,6 +175,17 @@ def main():
         lighting = Lighting(scene)
     samples_path = os.path.join(out_dir, "samples.jsonl")
     records = load_records(samples_path)
+    if args.skip_done:
+        done = {r["view"] for r in records}
+        cams = [cam for cam in cams if cam.name not in done]
+        if args.limit:
+            cams = cams[: args.limit]
+        print(f"render_views skip_done -> count={len(cams)}")
+    # Dataset-wide target counts steer task choice toward under-represented kinds.
+    balance = {}
+    for r in records:
+        kind = r.get("synthetic", {}).get("target_kind")
+        balance[kind] = balance.get(kind, 0) + 1
     log_path = os.path.join(out_dir, "render_log.csv")
     new_log = not os.path.isfile(log_path)
     total_start = time.perf_counter()
@@ -184,13 +200,17 @@ def main():
             look = {"name": args.look, "hdri": None, "weather": "Clear", "lighting": "Daylight", "preset": "day"}
             light_info = None
             if lighting is not None:
-                light_info = lighting.apply(preset_for(cam.name, args.lighting))
+                loc = cam.matrix_world.translation
+                light_info = lighting.apply(preset_for(cam.name, args.lighting), near=(loc.x, loc.y))
                 look.update(weather=light_info["weather"], lighting=light_info["lighting"], preset=light_info["preset"])
             elif asset_look is not None:
                 look["hdri"], look["weather"] = asset_look.apply_sky(cam.name)
             bpy.context.view_layer.update()
-            view_tasks = ViewTasks(scene, cam, planner, layout, rng=random.Random(cam.name), lighting=light_info)
+            view_tasks = ViewTasks(scene, cam, planner, layout, rng=random.Random(cam.name), lighting=light_info,
+                                   balance=balance, vis=vis)
             tasks = view_tasks.generate(max_tasks=args.max_tasks)
+            for task in tasks:
+                balance[task["target_kind"]] = balance.get(task["target_kind"], 0) + 1
             records = [r for r in records if r.get("view") != cam.name]
             if not tasks:
                 log.writerow([cam.name, "no_task", 0, f"{time.perf_counter() - start:.1f}"])

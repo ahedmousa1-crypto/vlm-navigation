@@ -8,6 +8,7 @@ import bpy
 from . import layout as lay
 from . import props
 from .materials import CAR_PAINTS, FACADES
+from .newblocks import NewBlocksMixin
 from .meshes import (
     add_bmesh_object,
     add_box,
@@ -34,7 +35,7 @@ def rects_overlap(a, b, gap):
     return not (a[0] > b[1] + gap or a[1] < b[0] - gap or a[2] > b[3] + gap or a[3] < b[2] - gap)
 
 
-class WorldBuilder:
+class WorldBuilder(NewBlocksMixin):
     def __init__(self, layout, materials, animals=None):
         self.layout = layout
         self.mat = materials
@@ -159,13 +160,18 @@ class WorldBuilder:
         add_bmesh_object("surface_lane_marking_center", "lane_marking", builder, [self.mat["crosswalk"]],
                          self.coll["Markings"], category="lane_marking")
 
-    def build_crosswalks(self):
+    def build_crosswalks(self, core):
+        """Crosswalks between two core blocks (``core=True``) or touching a new block (``core=False``)."""
         markings = self.coll["Markings"]
         ramp = lay.CURB_RAMP_LEN
         z0 = lay.ROAD_Z + lay.CROSSWALK_LIFT
         z1 = z0 + lay.CROSSWALK_THICK
         landing = lay.CURB_WIDTH + 0.8
+        blocks = self.layout["blocks"]
         for cw in self.layout["crosswalks"]:
+            touches_new = any(blocks[b].get("new") for b in cw["ends"])
+            if touches_new == core:
+                continue
             x0, x1, y0, y1 = cw["x0"], cw["x1"], cw["y0"], cw["y1"]
             h_a, h_b = cw["curb_h"]
             # Zebra bars run parallel to the traffic, so a walker crosses them like rungs.
@@ -205,16 +211,16 @@ class WorldBuilder:
 
     # ---- blocks --------------------------------------------------------
 
-    def build_blocks(self):
-        for block in self.layout["blocks"].values():
+    def build_blocks(self, blocks):
+        for block in blocks:
             self.build_block_ground(block)
         # Access areas first so furniture never blocks stairs, ramps, or closures.
-        for block in self.layout["blocks"].values():
+        for block in blocks:
             if block["variant"] == "terrace":
                 self.build_terrace(block)
             if block["variant"] == "construction":
                 self.build_closures(block)
-        for block in self.layout["blocks"].values():
+        for block in blocks:
             self.build_block_props(block)
 
     def build_block_ground(self, block):
@@ -238,11 +244,17 @@ class WorldBuilder:
                         (x0, x1, y0, y1, z0, z0 + lay.BIKE_LANE_THICK), self.mat["bike_lane"], self.coll["Markings"])
 
         variant = block["variant"]
-        if variant in ("street", "construction"):
+        if variant in ("street", "construction", "neighborhood", "park", "skate"):
             add_box(f"surface_grass_{block['id']}", "grass", (*interior, lay.BASE_Z, lay.GRASS_Z), self.mat["grass"], blocks)
         elif variant in ("plaza", "narrow"):
             add_box(f"surface_{walk_type}_{block['id']}_inner", walk_type, (*interior, lay.BASE_Z, z), self.mat[walk_type], blocks)
             self.build_buildings(block)
+        if variant == "neighborhood":
+            self.build_neighborhood(block)
+        elif variant == "park":
+            self.build_park(block)
+        elif variant == "skate":
+            self.build_skate(block)
         # Terrace interior is built in build_terrace.
 
     def build_terrace(self, block):
@@ -357,11 +369,15 @@ class WorldBuilder:
                 self.add_lamps(block, side, length, z, spacing=30.0)
                 self.add_tree_pits(block, side, length, z)
                 self.add_parked_cars(block, side, length)
+            elif variant == "neighborhood" and info["parked_cars"]:
+                self.add_parked_cars(block, side, length)
         if variant == "street":
             self.add_interior_trees_and_fence(block)
             self.add_greenery(block)
         if variant == "construction":
             self.add_construction_site(block)
+        if block.get("extras"):
+            self.add_scattered(block)
         self.add_animals(block)
 
     def add_lamps(self, block, side, length, z, spacing):
@@ -503,7 +519,8 @@ class WorldBuilder:
         if variant == "construction":
             return
         ring = lay.CURB_WIDTH + block["sidewalk_w"]
-        count = self.rng.randint(1, 2)
+        # New blocks get more animals so cat/dog tasks and Dynamic Obstacle cases are not rare.
+        count = self.rng.randint(2, 4) if block.get("new") else self.rng.randint(1, 2)
         for _ in range(count):
             kind = self.rng.choice(("cat", "dog"))
             color = self.rng.choice(self.animals.variants(kind))
@@ -512,7 +529,7 @@ class WorldBuilder:
                 side = self.rng.choice(lay.SIDES)
                 length = block["sides"][side]["length"]
                 s = self.rng.uniform(ring + 2.0, length - ring - 2.0)
-                on_grass = variant == "street" and self.rng.random() < 0.6
+                on_grass = variant in ("street", "park", "neighborhood") and self.rng.random() < 0.6
                 if on_grass:
                     d, z = ring + self.rng.uniform(0.8, 3.0), lay.GRASS_Z
                 else:
@@ -618,9 +635,11 @@ class WorldBuilder:
                 if cx == nx - 1:
                     faces.append("east")
                 height = self.rng.uniform(*heights)
-                self.build_building(block, rect, block["sidewalk_z"], height, self.rng.choice(facades), plaza, faces)
+                self.build_building(block, rect, block["sidewalk_z"], height, self.rng.choice(facades), plaza, faces,
+                                    entrance=bool(block.get("extras")))
 
-    def build_building(self, block, rect, z, height, facade, storefront, street_faces):
+    def build_building(self, block, rect, z, height, facade, storefront, street_faces, entrance=False):
+        """``entrance``: doors sit on a porch reached by steps and (usually) a ramp (new blocks only)."""
         x0, x1, y0, y1 = rect
         floors = max(2, int(height / FLOOR_H))
         height = floors * FLOOR_H
@@ -672,17 +691,22 @@ class WorldBuilder:
             length = a1 - a0
             columns = max(1, int(length / 3.0))
             mid = a0 + (columns // 2 + 0.5) * (length / columns)
+            dz = lay.PORCH_RISE if entrance else 0.0
 
-            def door_builder(bm, axis=axis, fixed=fixed, sign=sign, mid=mid):
-                panel(bm, axis, fixed, sign, mid - 0.6, mid + 0.6, z, z + 2.3, 0.07, 0)
+            def door_builder(bm, axis=axis, fixed=fixed, sign=sign, mid=mid, dz=dz):
+                panel(bm, axis, fixed, sign, mid - 0.6, mid + 0.6, z + dz, z + dz + 2.3, 0.07, 0)
 
             door = add_bmesh_object(self.next_name(f"surface_door_{block['id']}"), "building", door_builder,
                                     [self.mat["door"]], self.coll["Buildings"], category="door")
             door["building"] = building.name
             if axis == "x":
                 door["front"] = (mid, fixed + sign * 1.0)
+                door_xy, facing = (mid, fixed), (0.0, sign)
             else:
                 door["front"] = (fixed + sign * 1.0, mid)
+                door_xy, facing = (fixed, mid), (sign, 0.0)
+            if entrance:
+                self.add_entrance(door, door_xy, facing, z, ramp=self.rng.random() < 0.75)
 
     # ---- surroundings --------------------------------------------------
 
@@ -730,8 +754,16 @@ class WorldBuilder:
     def build(self):
         self.build_ground()
         self.build_center_lines()
-        self.build_crosswalks()
-        self.build_blocks()
+        blocks = list(self.layout["blocks"].values())
+        core = [b for b in blocks if not b.get("new")]
+        new = [b for b in blocks if b.get("new")]
+        # Core blocks first, with the original random stream, so they come out exactly as in Phase 1.
+        self.build_crosswalks(core=True)
+        self.build_blocks(core)
+        core_rng, self.rng = self.rng, random.Random(self.layout["seed"] * 7919 + 2)
+        self.build_crosswalks(core=False)
+        self.build_blocks(new)
+        self.rng = core_rng
         self.add_traffic()
         self.add_background_buildings()
         self.add_margin_trees()
