@@ -18,7 +18,8 @@ import os
 import sys
 
 from datasets import Dataset, DatasetDict, Features, Image, List, Value
-from huggingface_hub import DatasetCard
+import yaml
+from huggingface_hub import HfApi, hf_hub_download
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 EMBODIMENTS = ("Bicycle", "Human", "Legged Robot", "Wheeled Robot")
@@ -108,6 +109,7 @@ def main():
                         help="Blocks whose cameras form the test split (whole blocks, so near-duplicate views never straddle splits).")
     parser.add_argument("--private", action="store_true", help="Create the Hub repo as private.")
     parser.add_argument("--push", action="store_true", help="Actually upload. Without it nothing leaves this machine.")
+    parser.add_argument("--card_only", action="store_true", help="With --push: only rewrite the dataset card.")
     args = parser.parse_args()
     root = os.path.abspath(args.dataset)
     test_blocks = {b.strip() for b in args.test_blocks.split(",") if b.strip()}
@@ -136,16 +138,39 @@ def main():
         if not args.repo:
             print("--push needs --repo USER/NAME")
             return 1
-        dataset.push_to_hub(args.repo, private=args.private)
-        card = DatasetCard.load(args.repo, repo_type="dataset")
-        card.data.license = "cc-by-4.0"
-        card.data.pretty_name = "VLN Synthetic Streets"
-        card.data.tags = ["navigation", "vision-language-navigation", "synthetic", "blender", "navitrace"]
-        card.text = CARD_TEXT.format(train=len(splits["train"]), test=len(splits["test"]),
-                                     blocks=", ".join(sorted(test_blocks)))
-        card.push_to_hub(args.repo, repo_type="dataset")
+        if not args.card_only:
+            dataset.push_to_hub(args.repo, private=args.private)
+        write_card(args.repo, len(splits["train"]), len(splits["test"]), test_blocks)
         print(f"pushed https://huggingface.co/datasets/{args.repo} private={args.private}")
     return 0
+
+
+def write_card(repo, n_train, n_test, test_blocks, source_revision=None):
+    """Rewrite the Hub README: keep push_to_hub's YAML (features, splits, configs), add license and tags.
+
+    Written as bytes with LF line endings; going through text mode on Windows doubled every
+    line break and broke the YAML header.
+    """
+    path = hf_hub_download(repo, "README.md", repo_type="dataset", force_download=True, revision=source_revision)
+    with open(path, "rb") as handle:
+        # Earlier Windows round trips left "\r\r\n" endings; drop every CR.
+        raw = handle.read().decode("utf-8").replace("\r", "")
+    meta = {}
+    if raw.startswith("---\n"):
+        header = raw.split("---\n", 2)[1]
+        lines = header.split("\n")
+        if any(all(line == "" for line in lines[start::2]) for start in (0, 1)):
+            header = "\n".join(line for line in lines if line)  # undo doubled line breaks from an earlier broken card
+        meta = yaml.safe_load(header) or {}
+    meta.update({
+        "license": "cc-by-4.0",
+        "pretty_name": "VLN Synthetic Streets",
+        "tags": ["navigation", "vision-language-navigation", "synthetic", "blender", "navitrace"],
+    })
+    body = CARD_TEXT.format(train=n_train, test=n_test, blocks=", ".join(sorted(test_blocks)))
+    content = "---\n" + yaml.safe_dump(meta, sort_keys=False, allow_unicode=True) + "---\n" + body
+    HfApi().upload_file(path_or_fileobj=content.encode("utf-8"), path_in_repo="README.md", repo_id=repo,
+                        repo_type="dataset", commit_message="Update dataset card")
 
 
 if __name__ == "__main__":
