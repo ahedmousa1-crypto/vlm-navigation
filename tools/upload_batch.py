@@ -21,6 +21,8 @@ import os
 import sys
 import tempfile
 
+import pyarrow as pa
+import pyarrow.parquet as pq
 import yaml
 from datasets import Dataset
 from huggingface_hub import HfApi, hf_hub_download
@@ -82,6 +84,25 @@ def row_for(record, image_bytes=None, mask_bytes=None):
     }
 
 
+def write_shard(records, path, chunk=20):
+    """Parquet shard written ``chunk`` samples at a time, so only a few images are in memory at once.
+
+    Each chunk goes through datasets for encoding, so the file carries the same
+    schema and Hugging Face feature metadata as push_to_hub output.
+    """
+    writer = None
+    try:
+        for start in range(0, len(records), chunk):
+            table = Dataset.from_list([row_for(r) for r in records[start:start + chunk]], features=FEATURES).data.table
+            if writer is None:
+                writer = pq.ParquetWriter(path, table.schema)
+            writer.write_table(table)
+            del table
+    finally:
+        if writer is not None:
+            writer.close()
+
+
 def upload_new(args):
     api = HfApi()
     registry = load_registry()
@@ -101,7 +122,7 @@ def upload_new(args):
         shard = f"data/{split}-p2-{args.batch}.parquet"
         with tempfile.TemporaryDirectory() as tmp:
             local = os.path.join(tmp, "shard.parquet")
-            Dataset.from_list([row_for(r) for r in rows], features=FEATURES).to_parquet(local)
+            write_shard(rows, local)
             api.upload_file(path_or_fileobj=local, path_in_repo=shard, repo_id=args.repo, repo_type="dataset",
                             commit_message=f"Add {shard} ({len(rows)} samples)")
         registry[shard] = [r["sample_id"] for r in rows]
@@ -126,6 +147,44 @@ def upload_new(args):
     return 0
 
 
+def rewrite_columns(src, out, truth):
+    """Copy a parquet shard row group by row group, replacing only ground_truth and synthetic.
+
+    Image bytes are passed through untouched, so memory stays at about one row group.
+    Returns (rows, rows_changed).
+    """
+    reader = pq.ParquetFile(src)
+    schema = reader.schema_arrow
+    gt_type = schema.field("ground_truth").type
+    rows = changed = 0
+    with pq.ParquetWriter(out, schema) as writer:
+        for index in range(reader.num_row_groups):
+            table = reader.read_row_group(index)
+            ids = table.column("sample_id").to_pylist()
+            old_gt = table.column("ground_truth").to_pylist()
+            old_syn = table.column("synthetic").to_pylist()
+            new_gt, new_syn = [], []
+            for sid, gt, syn in zip(ids, old_gt, old_syn):
+                record = truth.get(sid)
+                if record is None:
+                    new_gt.append(gt)
+                    new_syn.append(syn)
+                    continue
+                fresh = {e: record["ground_truth"].get(e) for e in EMBODIMENTS}
+                if fresh != gt:
+                    changed += 1
+                new_gt.append(fresh)
+                new_syn.append(json.dumps(record.get("synthetic", {})))
+            table = table.set_column(table.schema.get_field_index("ground_truth"), "ground_truth",
+                                     pa.array(new_gt, type=gt_type))
+            table = table.set_column(table.schema.get_field_index("synthetic"), "synthetic",
+                                     pa.array(new_syn, type=pa.string()))
+            writer.write_table(table)
+            rows += len(ids)
+            del table
+    return rows, changed
+
+
 def retrace(args):
     """Swap in the current ground truth for Phase 1 shards (the ones push_to_hub wrote)."""
     api = HfApi()
@@ -135,21 +194,14 @@ def retrace(args):
     for name in files:
         with tempfile.TemporaryDirectory() as tmp:
             src = hf_hub_download(args.repo, name, repo_type="dataset", local_dir=tmp)
-            data = Dataset.from_parquet(src)
-            changed = sum(1 for sid in data["sample_id"] if truth.get(sid, {}).get("synthetic", {}).get("retraced"))
-
-            def update(row):
-                record = truth.get(row["sample_id"])
-                if record is not None:
-                    row["ground_truth"] = {e: record["ground_truth"].get(e) for e in EMBODIMENTS}
-                    row["synthetic"] = json.dumps(record.get("synthetic", {}))
-                return row
-
             out = os.path.join(tmp, "out.parquet")
-            data.map(update, features=FEATURES).to_parquet(out)
+            rows, changed = rewrite_columns(src, out, truth)
+            if changed == 0:
+                print(f"retraced {name} rows={rows} already up to date, skipped")
+                continue
             api.upload_file(path_or_fileobj=out, path_in_repo=name, repo_id=args.repo, repo_type="dataset",
                             commit_message=f"Denser traces for {name}")
-        print(f"retraced {name} rows={len(data)} updated={changed}")
+        print(f"retraced {name} rows={rows} updated={changed}")
     registry = load_registry()
     blocks = test_blocks()
     v1 = [r["sample_id"] for r in load_records() if r.get("synthetic", {}).get("retraced")]

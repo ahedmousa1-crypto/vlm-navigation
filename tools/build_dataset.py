@@ -85,6 +85,8 @@ def check_record(record, image_size):
 def main():
     parser = argparse.ArgumentParser(description="Finish masks, previews, and checks for rendered samples.")
     parser.add_argument("--dataset", default=os.path.join(REPO_ROOT, "dataset"))
+    parser.add_argument("--pending_only", action="store_true",
+                        help="Only records whose image is still on disk (earlier batches were uploaded and deleted).")
     parser.add_argument("--max_previews", type=int, default=-1,
                         help="Draw at most this many previews (-1 = all, 0 = none); checks always run on every record.")
     args = parser.parse_args()
@@ -98,6 +100,8 @@ def main():
     with open(os.path.join(root, "samples.jsonl"), encoding="utf-8") as handle:
         records = [json.loads(line) for line in handle if line.strip()]
 
+    if args.pending_only:
+        records = [r for r in records if os.path.isfile(os.path.join(root, r["image"]))]
     views = sorted({r["view"] for r in records})
     for view in views:
         src = os.path.join(root, "work", "masks_rgb", f"{view}.png")
