@@ -151,7 +151,23 @@ def predict(run, adapter="", limit=0, batch_size=8):
         indices = indices[:limit]
     out_path = Path(f"/vol/preds/{run}.jsonl")
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    with open(out_path, "w", encoding="utf-8") as handle:
+    # Resume: keep earlier answers and only predict the samples that are still missing.
+    done = set()
+    if out_path.exists():
+        kept = []
+        with open(out_path, encoding="utf-8") as handle:
+            for line in handle:
+                try:
+                    done.add(json.loads(line)["sample_id"])
+                    kept.append(line if line.endswith("\n") else line + "\n")
+                except (json.JSONDecodeError, KeyError):
+                    pass  # a line cut off by an interrupted run
+        with open(out_path, "w", encoding="utf-8") as handle:
+            handle.writelines(kept)
+    sample_ids = ds["sample_id"]
+    indices = [i for i in indices if sample_ids[i] not in done]
+    print(f"resume: {len(done)} done, {len(indices)} to predict", flush=True)
+    with open(out_path, "a", encoding="utf-8") as handle:
         for start in range(0, len(indices), batch_size):
             rows = [ds[i] for i in indices[start:start + batch_size]]
             images = [_resize(r["image"]) for r in rows]
@@ -168,9 +184,12 @@ def predict(run, adapter="", limit=0, batch_size=8):
                     "sample_id": r["sample_id"], "embodiment": "Human", "category": r["category"],
                     "raw_response": reply, "prediction": [[int(x * width), int(y * height)] for x, y in trace],
                 }) + "\n")
+            handle.flush()
+            if (start // batch_size) % 5 == 4:
+                volume.commit()  # make partial progress durable in case the run is interrupted
             print(f"predicted {min(start + batch_size, len(indices))}/{len(indices)}", flush=True)
     volume.commit()
-    return {"run": run, "samples": len(indices), "path": str(out_path)}
+    return {"run": run, "samples": len(done) + len(indices), "path": str(out_path)}
 
 
 def _score_rows(args):
