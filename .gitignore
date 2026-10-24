@@ -30,3 +30,6 @@ legacy/blender/batch_street_50/
 
 # Reports (Word documents shared directly, not part of the code)
 reports/
+
+# Fine-tuning outputs (scores, logs, adapters)
+finetune/results/
