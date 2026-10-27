@@ -5,6 +5,7 @@ Steps (run from the repo root; results live on the Modal volume "vln-finetune"):
   modal run finetune/modal_app.py --step prepare                     # CPU: download model + data into the volume
   modal run finetune/modal_app.py --step check                       # CPU: verify prompt/labels (cents)
   modal run finetune/modal_app.py --step predict --run baseline      # GPU: untrained model on NaviTrace val (Human)
+  modal run finetune/modal_app.py --step predict --run synth-baseline --data synthetic  # same on our test split
   modal run finetune/modal_app.py --step score --run baseline        # CPU: official NaviTrace score
   modal run finetune/modal_app.py --step train --run lora-v1 --epochs 2
   modal run finetune/modal_app.py --step predict --run lora-v1 --adapter lora-v1
@@ -26,6 +27,7 @@ import modal
 MODEL_ID = "Qwen/Qwen3-VL-8B-Instruct"
 TRAIN_DATA = "ahd03/vln-synthetic-streets"
 EVAL_DATA = "leggedrobotics/navitrace"
+EVALS = {"navitrace": (EVAL_DATA, "validation"), "synthetic": (TRAIN_DATA, "test")}  # --data choices
 MAX_SIDE = 896          # images are resized so the longer side is 896 px (coordinates are normalized)
 GPU = "A100-80GB"
 
@@ -134,8 +136,8 @@ def check():
 
 
 @app.function(image=image, volumes={"/vol": volume}, gpu=GPU, timeout=3 * 3600)
-def predict(run, adapter="", limit=0, batch_size=8):
-    """NaviTrace validation, Human embodiment: predictions in pixels, saved to /vol/preds/<run>.jsonl."""
+def predict(run, adapter="", limit=0, batch_size=8, data="navitrace"):
+    """Human embodiment on NaviTrace validation or our synthetic test split: predictions in pixels, saved to /vol/preds/<run>.jsonl."""
     _setup()
     import torch
     from datasets import load_dataset
@@ -145,7 +147,7 @@ def predict(run, adapter="", limit=0, batch_size=8):
     processor, model = _load_model(adapter)
     processor.tokenizer.padding_side = "left"
     model.eval()
-    ds = load_dataset(EVAL_DATA, split="validation").remove_columns(["segmentation_mask"])
+    ds = load_dataset(EVALS[data][0], split=EVALS[data][1]).remove_columns(["segmentation_mask"])
     indices = [i for i, emb in enumerate(ds["embodiments"]) if "Human" in emb]
     if limit:
         indices = indices[:limit]
@@ -193,12 +195,13 @@ def predict(run, adapter="", limit=0, batch_size=8):
 
 
 def _score_rows(args):
-    rows, = args
+    rows, data = args
     import numpy as np
     from datasets import load_dataset
     from navitrace_eval.scoring import score as navitrace_score
+    from synthetic_classes import to_navitrace_mask
 
-    ds = load_dataset(EVAL_DATA, split="validation")
+    ds = load_dataset(EVALS[data][0], split=EVALS[data][1])
     index = {sid: i for i, sid in enumerate(ds["sample_id"])}
     out = []
     for row in rows:
@@ -207,12 +210,14 @@ def _score_rows(args):
             continue
         sample = ds[index[row["sample_id"]]]
         mask = np.array(sample["segmentation_mask"])
+        if data == "synthetic":
+            mask = to_navitrace_mask(mask)  # our class ids -> NaviTrace categories for the semantic penalty
         out.append((row["sample_id"], float(navitrace_score(row["prediction"], sample["ground_truth"]["Human"], mask, "Human"))))
     return out
 
 
 @app.function(image=image, volumes={"/vol": volume}, cpu=8, memory=65536, timeout=3 * 3600)
-def score(run, workers=8):
+def score(run, workers=8, data="navitrace"):
     """Official NaviTrace score for /vol/preds/<run>.jsonl; summary saved to /vol/scores/<run>.json."""
     _setup()
     import math
@@ -220,11 +225,11 @@ def score(run, workers=8):
 
     from datasets import load_dataset
 
-    load_dataset(EVAL_DATA, split="validation")  # make sure the cache is warm before forking workers
+    load_dataset(EVALS[data][0], split=EVALS[data][1])  # make sure the cache is warm before forking workers
     rows = [json.loads(line) for line in open(f"/vol/preds/{run}.jsonl", encoding="utf-8")]
     chunks = [rows[k::workers] for k in range(workers)]
     with multiprocessing.get_context("fork").Pool(workers) as pool:
-        results = [item for part in pool.map(_score_rows, [(c,) for c in chunks]) for item in part]
+        results = [item for part in pool.map(_score_rows, [(c, data) for c in chunks]) for item in part]
     scores = dict(results)
     valid = [s for s in scores.values() if not math.isnan(s)]
     by_cat = {}
@@ -234,6 +239,7 @@ def score(run, workers=8):
             by_cat.setdefault(cat, []).append(0.0 if math.isnan(s) else s)
     summary = {
         "run": run,
+        "data": data,
         "samples": len(rows),
         "valid_predictions": len(valid),
         "mean_score_valid": sum(valid) / max(1, len(valid)),
@@ -309,15 +315,16 @@ def train(run, epochs=2, lr=1e-4, rank=16, batch_size=4, grad_accum=4, limit=0):
 
 
 @app.local_entrypoint()
-def main(step: str = "check", run: str = "baseline", adapter: str = "", epochs: int = 2, limit: int = 0):
+def main(step: str = "check", run: str = "baseline", adapter: str = "", epochs: int = 2, limit: int = 0,
+         data: str = "navitrace"):
     if step == "prepare":
         print(json.dumps(prepare.remote(), indent=1))
     elif step == "check":
         print(json.dumps(check.remote(), indent=1))
     elif step == "predict":
-        print(predict.remote(run, adapter=adapter, limit=limit))
+        print(predict.remote(run, adapter=adapter, limit=limit, data=data))
     elif step == "score":
-        print(json.dumps(score.remote(run), indent=1))
+        print(json.dumps(score.remote(run, data=data), indent=1))
     elif step == "train":
         print(train.remote(run, epochs=epochs, limit=limit))
     else:
