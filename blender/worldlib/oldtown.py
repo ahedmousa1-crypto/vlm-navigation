@@ -280,15 +280,21 @@ class OldTownBuilder(WorldBuilder):
             self.wall_gaps.append((hit[0] - width / 2 - 0.3, hit[0] + width / 2 + 0.3))
 
     def build_parapet(self):
-        """Low stone wall along the top of the retaining wall, open where stairs and ramps arrive."""
+        """Low stone wall along the top of the retaining wall where no house stands against it,
+        open where stairs and ramps arrive."""
         nav_x0, nav_x1 = self.layout["nav_extent"][:2]
+        gaps = list(self.wall_gaps)
+        for face in self.faces.values():
+            if face["row"] == self.layout["wall_line"] - 1 and not face["square"]:
+                xs = (face["inset"][2][0], face["inset"][3][0])
+                gaps.append((min(xs) - 0.05, max(xs) + 0.05))
 
         def builder(bm):
             for p, q in zip(self.wall, self.wall[1:]):
                 u = norm(sub(q, p))
                 length = math.hypot(*sub(q, p))
                 cuts = [(0.0, length)]
-                for g0, g1 in self.wall_gaps + [(-1e9, nav_x0 - 4.0), (nav_x1 + 4.0, 1e9)]:
+                for g0, g1 in gaps + [(-1e9, nav_x0 - 4.0), (nav_x1 + 4.0, 1e9)]:
                     out = []
                     for s0, s1 in cuts:
                         t0 = (g0 - p[0]) / (u[0] or 1e-9)
@@ -317,8 +323,6 @@ class OldTownBuilder(WorldBuilder):
             if face["square"]:
                 continue
             edges = [0, 1, 2, 3]
-            if face["row"] == j_wall - 1:
-                edges.remove(2)  # the retaining wall closes this side
             inset = [tuple(p) for p in face["inset"]]
             short = min(self.edge_len(face, k) for k in range(4))
             depth = min(10.0, max(6.0, short * 0.36))
@@ -327,9 +331,13 @@ class OldTownBuilder(WorldBuilder):
                 k = lot["edge"]
                 nb = self.neighbour(face, k)
                 on_main = (k == 0 and face["row"] == j_main) or (k == 2 and face["row"] == j_main - 1)
-                on_promenade = k == 0 and face["row"] == j_wall
+                on_promenade = (k == 0 and face["row"] == j_wall) or (k == 2 and face["row"] == j_wall - 1)
                 shop = on_main or on_promenade or (nb is not None and nb["square"] is not None)
-                self.build_house(face, lot, shop and self.rng.random() < 0.8)
+                if k == 2 and face["row"] == j_wall - 1:
+                    # Built into the slope: stands on the lower town, front door on the promenade above.
+                    self.build_house(face, lot, shop and self.rng.random() < 0.8, ground_z=self.H, base_z=0.0)
+                else:
+                    self.build_house(face, lot, shop and self.rng.random() < 0.8)
             # A tree or two in the courtyard (seen over the parapet from the promenade).
             cx = sum(p[0] for p in inset) / 4
             cy = sum(p[1] for p in inset) / 4
@@ -339,8 +347,10 @@ class OldTownBuilder(WorldBuilder):
                               reserve_gap=0.3)
         self.build_background()
 
-    def build_house(self, face, lot, shop, ground_z=None, floors=None):
+    def build_house(self, face, lot, shop, ground_z=None, floors=None, base_z=None):
+        """``base_z``: foundation height when it differs from the entrance level (houses in the slope)."""
         z = face["ground_z"] if ground_z is None else ground_z
+        base = z if base_z is None else base_z
         quad = [tuple(p) for p in lot["quad"]]
         a, b = quad[0], quad[1]
         u = norm(sub(b, a))
@@ -356,7 +366,7 @@ class OldTownBuilder(WorldBuilder):
         flat = self.rng.random() < 0.3
 
         def builder(bm):
-            bm_prism(bm, quad, z - 0.3, z + height, 0)
+            bm_prism(bm, quad, base - 0.3, z + height, 0)
             top = z + height
             for f in range(1, floors):
                 zf = z + GROUND_FLOOR_H + (f - 1) * FLOOR_H
@@ -397,7 +407,7 @@ class OldTownBuilder(WorldBuilder):
 
         building = add_bmesh_object(self.next_name(f"surface_building_{face['id']}"), "building", builder,
                                     [self.mat[stucco], self.mat["glass"], self.mat[shutter], self.mat["stone"],
-                                     self.mat["roof_tile"]], self.coll["Buildings"], category="building")
+                                     self.mat["roof_terracotta"]], self.coll["Buildings"], category="building")
         building["height"] = height
 
         mid = (door_col + 0.5) * pitch
@@ -724,11 +734,13 @@ class OldTownBuilder(WorldBuilder):
             length = math.hypot(*sub(b, a))
             s = 5.0
             while s < length - 5.0:
-                # On the promenade, 1.3 m in from the parapet, facing it (benches face local -Y).
+                # On the promenade, 1.3 m in from its south edge, facing along the promenade's middle
+                # (benches face local -Y).
                 p = add(add(a, mul(u, s)), mul(left(u), -seg["width"] / 2 + 1.3))
                 choice = self.rng.random()
                 if choice < 0.45:
-                    self.place_world(props.make_bench(), p[0], p[1], self.H, angle_of(u), "surface_obstacle_bench")
+                    self.place_world(props.make_bench(), p[0], p[1], self.H, angle_of(u) + math.pi,
+                                     "surface_obstacle_bench")
                 elif choice < 0.7:
                     self.place_world(po.make_flower_pot(0.6), p[0], p[1], self.H, 0.0, "surface_obstacle_flower_pot")
                 else:

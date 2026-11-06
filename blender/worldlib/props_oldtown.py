@@ -5,7 +5,7 @@ props so the ground under them stays walkable in the navmap.
 
 import math
 
-from .meshes import bm_box, bm_cylinder, bm_icosphere, bm_wheel
+from .meshes import bm_box, bm_cylinder, bm_icosphere, bm_obox, bm_wheel
 from .props import Prop
 
 CHAIR_R = 0.62  # chair distance from the table center
@@ -24,9 +24,9 @@ def make_cafe_set(chairs=4):
             bm_box(bm, cx - 0.2, cx + 0.2, cy - 0.2, cy + 0.2, 0.43, 0.47, material_index=1)
             for lx, ly in ((-0.16, -0.16), (0.16, -0.16), (-0.16, 0.16), (0.16, 0.16)):
                 bm_box(bm, cx + lx - 0.02, cx + lx + 0.02, cy + ly - 0.02, cy + ly + 0.02, 0.0, 0.43, material_index=1)
-            # Backrest on the side away from the table.
-            bx, by = math.cos(a) * (CHAIR_R + 0.19), math.sin(a) * (CHAIR_R + 0.19)
-            bm_cylinder(bm, (bx, by, 0.66), 0.17, 0.4, segments=6, material_index=1)
+            # Thin backrest on the side away from the table.
+            bx, by = math.cos(a) * (CHAIR_R + 0.18), math.sin(a) * (CHAIR_R + 0.18)
+            bm_obox(bm, (bx, by), (-math.sin(a), math.cos(a)), -0.19, 0.19, -0.02, 0.02, 0.47, 0.88, 1)
 
     reach = CHAIR_R + 0.25
     return Prop(builder, ["wood", "metal"], "obstacle", "cafe_table", reach, reach)
