@@ -70,6 +70,13 @@ CLASSES = {
     59: ("ledge", (160, 160, 170)),
     60: ("basketball_hoop", (240, 120, 30)),
     61: ("wheelie_bin", (20, 90, 50)),
+    # World 2 (old town).
+    62: ("cobblestone", (175, 140, 110)),
+    63: ("person", (255, 220, 0)),
+    64: ("cafe_table", (230, 150, 210)),
+    65: ("market_stall", (120, 200, 60)),
+    66: ("flower_pot", (210, 100, 60)),
+    67: ("scooter", (100, 30, 200)),
 }
 CLASS_ID = {name: index for index, (name, _rgb) in CLASSES.items()}
 
@@ -77,6 +84,7 @@ GROUND_TYPES = {
     "road", "bike_lane", "crosswalk", "curb_ramp", "curb", "sidewalk", "plaza",
     "grass", "terrace", "stairs", "ramp", "tree_pit", "lane_marking",
     "driveway", "park_path", "playground", "water", "bridge", "court", "skate_area", "porch",
+    "cobblestone",
 }
 
 # Human walking cost per ground class; missing classes are not walkable.
@@ -103,6 +111,7 @@ HUMAN_COST = {
     "driveway": 1.2,
     "playground": 1.3,
     "court": 1.3,
+    "cobblestone": 1.0,
     # water is deliberately absent: not walkable
 }
 MAX_STEP_M = 0.2  # tallest height change a Human crosses between neighbouring cells

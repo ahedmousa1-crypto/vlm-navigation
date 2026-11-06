@@ -11,6 +11,7 @@ __pycache__/
 # World build output (regenerable via blender/build_world.py)
 blender/world/*
 !blender/world/.gitkeep
+blender/world_oldtown/
 
 # Downloaded CC0 assets (re-fetch via tools/fetch_assets.py); keep license list
 blender/assets/*

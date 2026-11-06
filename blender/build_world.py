@@ -9,6 +9,7 @@ Writes into --out (default blender/world/):
   build_qa.json   props that do not sit on the ground
 
   blender --background --python blender/build_world.py -- --seed 0
+  blender --background --python blender/build_world.py -- --world oldtown   # World 2, into blender/world_oldtown/
 
 Blender only forwards arguments that come after ``--``.
 """
@@ -26,6 +27,8 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from worldlib import layout as lay  # noqa: E402
 from worldlib import navmap  # noqa: E402
+from worldlib import oldtown_layout  # noqa: E402
+from worldlib.oldtown import OldTownBuilder  # noqa: E402
 from worldlib.animals import AnimalTemplates  # noqa: E402
 from worldlib.build import WorldBuilder  # noqa: E402
 from worldlib.materials import build_materials  # noqa: E402
@@ -39,7 +42,9 @@ def parse_args():
     argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
     parser = argparse.ArgumentParser(description="Build the street world.")
     parser.add_argument("--seed", type=int, default=0)
-    parser.add_argument("--out", default=os.path.join(os.path.dirname(os.path.abspath(__file__)), "world"))
+    parser.add_argument("--world", choices=("streets", "oldtown"), default="streets",
+                        help="streets = World 1 (the town), oldtown = World 2.")
+    parser.add_argument("--out", default=None, help="Default: blender/world (streets) or blender/world_oldtown.")
     parser.add_argument("--cell", type=float, default=0.25, help="Navmap cell size in metres.")
     parser.add_argument("--overview", type=lambda v: str(v).lower() in ("true", "1", "yes"), default=True)
     parser.add_argument("--keep_views", type=lambda v: str(v).lower() in ("true", "1", "yes"), default=True,
@@ -112,18 +117,20 @@ def render_overview(out_dir, extent):
 
 def main():
     args = parse_args()
-    out_dir = os.path.abspath(args.out)
+    here = os.path.dirname(os.path.abspath(__file__))
+    out_dir = os.path.abspath(args.out or os.path.join(here, "world" if args.world == "streets" else "world_oldtown"))
     os.makedirs(out_dir, exist_ok=True)
     start = time.perf_counter()
 
     bpy.ops.wm.read_factory_settings(use_empty=True)
-    layout = lay.make_layout(args.seed)
-    print(lay.describe(layout))
+    plan = lay if args.world == "streets" else oldtown_layout
+    layout = plan.make_layout(args.seed)
+    print(plan.describe(layout))
 
     animals = AnimalTemplates(os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets"))
     if not animals:
         print("animals_missing run tools/fetch_assets.py to add cats and dogs")
-    builder = WorldBuilder(layout, build_materials(), animals)
+    builder = (WorldBuilder if args.world == "streets" else OldTownBuilder)(layout, build_materials(), animals)
     builder.build()
     get_collection("Views")
     blend_path = os.path.join(out_dir, "world.blend")
@@ -140,6 +147,8 @@ def main():
         json.dump({"seed": args.seed, "obstacles_checked": checked, "ground_contact_failures": failures}, handle, indent=2)
 
     grid = navmap.rasterize(tree, layout["nav_extent"], cell=args.cell)
+    if layout.get("social_zones"):
+        navmap.add_social(grid, layout["social_zones"])
     navmap.save(grid, os.path.join(out_dir, "navmap.npz"))
     with open(os.path.join(out_dir, "layout.json"), "w", encoding="utf-8") as handle:
         json.dump(layout, handle, indent=1)

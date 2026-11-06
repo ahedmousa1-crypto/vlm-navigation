@@ -113,5 +113,35 @@ def rasterize(tree, extent, cell=0.25):
     return {"cls": cls, "height": height, "origin": np.array([x0, y0]), "cell": np.float32(cell)}
 
 
+SOCIAL_COST = 6.0  # extra walking cost inside a group, a queue or café seating (finite: still passable)
+
+
+def add_social(navmap, zones):
+    """Add a "social" cost layer from polygons (groups, queues, café seating), so paths go around them."""
+    cls = navmap["cls"]
+    social = np.zeros(cls.shape, dtype=np.float32)
+    x0, y0 = navmap["origin"]
+    cell = float(navmap["cell"])
+    for zone in zones:
+        poly = zone["poly"]
+        xs, ys = [p[0] for p in poly], [p[1] for p in poly]
+        c0, c1 = max(0, int((min(xs) - x0) / cell)), min(cls.shape[1] - 1, int((max(xs) - x0) / cell))
+        r0, r1 = max(0, int((min(ys) - y0) / cell)), min(cls.shape[0] - 1, int((max(ys) - y0) / cell))
+        for row in range(r0, r1 + 1):
+            y = y0 + (row + 0.5) * cell
+            for col in range(c0, c1 + 1):
+                x = x0 + (col + 0.5) * cell
+                inside = False
+                for k in range(len(poly)):
+                    (ax, ay), (bx, by) = poly[k], poly[(k + 1) % len(poly)]
+                    if (ay > y) != (by > y) and x < ax + (y - ay) * (bx - ax) / (by - ay):
+                        inside = not inside
+                if inside:
+                    social[row, col] = SOCIAL_COST
+    navmap["social"] = social
+    print(f"social_cells {int((social > 0).sum())} from {len(zones)} zones")
+    return navmap
+
+
 def save(navmap, path):
     np.savez_compressed(path, **navmap)

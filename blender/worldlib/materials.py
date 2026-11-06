@@ -137,9 +137,55 @@ def build_materials():
         "paint_orange": flat_material("mat_paint_orange", (0.90, 0.40, 0.05), roughness=0.4),
         "paint_white": flat_material("mat_paint_white", (0.88, 0.88, 0.86), roughness=0.4),
         "paint_black": flat_material("mat_paint_black", (0.04, 0.04, 0.045), roughness=0.5),
+        # World 2 (old town).
+        "cobblestone": layered_material("mat_cobblestone", (0.20, 0.17, 0.14), (0.55, 0.48, 0.40), 1.6, 34.0, 0.7, 0.95, 0.9),
+        "pavers": layered_material("mat_pavers", (0.40, 0.36, 0.31), (0.78, 0.73, 0.64), 1.0, 9.0, 0.6, 0.9, 0.6),
+        "wall_stone": layered_material("mat_wall_stone", (0.30, 0.27, 0.23), (0.58, 0.53, 0.45), 1.8, 7.0, 0.8, 0.97, 0.8),
+        "stucco_ochre": layered_material("mat_stucco_ochre", (0.62, 0.42, 0.18), (0.82, 0.62, 0.32), 0.7, 9.0, 0.8, 0.96, 0.3),
+        "stucco_terracotta": layered_material("mat_stucco_terracotta", (0.50, 0.22, 0.13), (0.72, 0.38, 0.24), 0.7, 9.0, 0.8, 0.96, 0.3),
+        "stucco_cream": layered_material("mat_stucco_cream", (0.72, 0.66, 0.54), (0.92, 0.88, 0.76), 0.7, 9.0, 0.8, 0.96, 0.3),
+        "stucco_pink": layered_material("mat_stucco_pink", (0.66, 0.42, 0.40), (0.86, 0.62, 0.58), 0.7, 9.0, 0.8, 0.96, 0.3),
+        "stucco_yellow": layered_material("mat_stucco_yellow", (0.72, 0.60, 0.22), (0.92, 0.80, 0.42), 0.7, 9.0, 0.8, 0.96, 0.3),
+        "stucco_sage": layered_material("mat_stucco_sage", (0.42, 0.48, 0.36), (0.60, 0.68, 0.52), 0.7, 9.0, 0.8, 0.96, 0.3),
+        "stucco_blue": layered_material("mat_stucco_blue", (0.36, 0.46, 0.56), (0.55, 0.66, 0.76), 0.7, 9.0, 0.8, 0.96, 0.3),
+        "terracotta": layered_material("mat_terracotta", (0.42, 0.16, 0.08), (0.66, 0.30, 0.16), 1.4, 12.0, 0.7, 0.9, 0.3),
+        "shutter_green": flat_material("mat_shutter_green", (0.08, 0.25, 0.14), roughness=0.5),
+        "shutter_blue": flat_material("mat_shutter_blue", (0.08, 0.18, 0.35), roughness=0.5),
+        "shutter_brown": flat_material("mat_shutter_brown", (0.25, 0.13, 0.06), roughness=0.5),
+        "fabric_red": flat_material("mat_fabric_red", (0.60, 0.06, 0.05), roughness=0.85),
+        "fabric_green": flat_material("mat_fabric_green", (0.06, 0.32, 0.14), roughness=0.85),
+        "fabric_cream": flat_material("mat_fabric_cream", (0.85, 0.80, 0.68), roughness=0.85),
+        "fabric_blue": flat_material("mat_fabric_blue", (0.07, 0.18, 0.45), roughness=0.85),
+        "fabric_orange": flat_material("mat_fabric_orange", (0.85, 0.38, 0.06), roughness=0.85),
+        # People: skin, hair and clothes.
+        "skin_1": flat_material("mat_skin_1", (0.80, 0.60, 0.48), roughness=0.6),
+        "skin_2": flat_material("mat_skin_2", (0.62, 0.43, 0.30), roughness=0.6),
+        "skin_3": flat_material("mat_skin_3", (0.42, 0.27, 0.17), roughness=0.6),
+        "skin_4": flat_material("mat_skin_4", (0.22, 0.13, 0.08), roughness=0.6),
+        "hair_black": flat_material("mat_hair_black", (0.02, 0.02, 0.02), roughness=0.7),
+        "hair_brown": flat_material("mat_hair_brown", (0.16, 0.08, 0.03), roughness=0.7),
+        "hair_blond": flat_material("mat_hair_blond", (0.65, 0.50, 0.22), roughness=0.7),
+        "hair_gray": flat_material("mat_hair_gray", (0.55, 0.55, 0.55), roughness=0.7),
+        "cloth_red": flat_material("mat_cloth_red", (0.55, 0.04, 0.04), roughness=0.85),
+        "cloth_blue": flat_material("mat_cloth_blue", (0.06, 0.14, 0.45), roughness=0.85),
+        "cloth_green": flat_material("mat_cloth_green", (0.06, 0.32, 0.10), roughness=0.85),
+        "cloth_yellow": flat_material("mat_cloth_yellow", (0.85, 0.65, 0.05), roughness=0.85),
+        "cloth_white": flat_material("mat_cloth_white", (0.85, 0.85, 0.82), roughness=0.85),
+        "cloth_black": flat_material("mat_cloth_black", (0.03, 0.03, 0.035), roughness=0.85),
+        "cloth_gray": flat_material("mat_cloth_gray", (0.32, 0.32, 0.34), roughness=0.85),
+        "cloth_orange": flat_material("mat_cloth_orange", (0.85, 0.32, 0.04), roughness=0.85),
+        "cloth_purple": flat_material("mat_cloth_purple", (0.30, 0.08, 0.40), roughness=0.85),
+        "cloth_pink": flat_material("mat_cloth_pink", (0.85, 0.42, 0.55), roughness=0.85),
+        "cloth_jeans": flat_material("mat_cloth_jeans", (0.10, 0.16, 0.30), roughness=0.85),
+        "cloth_beige": flat_material("mat_cloth_beige", (0.60, 0.50, 0.36), roughness=0.85),
     }
 
 
 CAR_PAINTS = ("car_red", "car_blue", "car_white", "car_gray", "car_black")
 FACADES = ("facade_light", "facade_brick", "facade_gray", "facade_beige")
 HOUSE_PAINTS = {color: f"house_{color}" for color in ("white", "yellow", "blue", "red", "gray", "green")}
+STUCCOS = ("stucco_ochre", "stucco_terracotta", "stucco_cream", "stucco_pink", "stucco_yellow", "stucco_sage",
+           "stucco_blue")
+SHUTTERS = ("shutter_green", "shutter_blue", "shutter_brown")
+FABRICS = {"red": "fabric_red", "green": "fabric_green", "cream": "fabric_cream", "blue": "fabric_blue",
+           "orange": "fabric_orange"}

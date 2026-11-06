@@ -45,6 +45,11 @@ class HumanPlanner:
             if name in HUMAN_COST:
                 lut[index] = HUMAN_COST[name]
         base = lut[self.cls]
+        files = getattr(navmap, "files", navmap)
+        # Old town: groups, queues and café seating cost extra, so paths go around them.
+        self.social = np.asarray(navmap["social"]) > 0 if "social" in files else np.zeros(self.cls.shape, bool)
+        if "social" in files:
+            base = base + np.asarray(navmap["social"], dtype=np.float64)
         obstacle = ~np.isfinite(base)
         blocked = dilate(obstacle, CLEARANCE_CELLS)
         near = dilate(blocked, 1) & ~blocked

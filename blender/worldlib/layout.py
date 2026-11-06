@@ -386,7 +386,16 @@ def side_rect(block, side, s0, s1, d0, d1):
 
 
 def block_side_at(layout, x, y):
-    """(block, side) whose road edge is nearest to (x, y), or (None, None) outside every block."""
+    """(block, side) whose road edge is nearest to (x, y), or (None, None) outside every block.
+
+    In the old town (World 2) the blocks are the faces between street centerlines; side is None.
+    """
+    if layout.get("world") == "oldtown":
+        from .oldtown_layout import point_in_poly
+        for face in layout["blocks"].values():
+            if point_in_poly((x, y), face["quad"]):
+                return face, None
+        return None, None
     for block in layout["blocks"].values():
         if block["x0"] <= x <= block["x1"] and block["y0"] <= y <= block["y1"]:
             dists = {

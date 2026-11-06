@@ -110,6 +110,37 @@ def bm_box(bm, x0, x1, y0, y1, z0, z1, material_index=0):
     return geom["verts"]
 
 
+def bm_prism(bm, poly, z0, z1, material_index=0, side_index=None):
+    """Solid over a convex polygon (counter-clockwise (x, y) points) from z0 up to z1.
+
+    ``z1`` is one height or one height per point (a sloped top, e.g. a ramp);
+    ``side_index`` gives the side walls their own material.
+    """
+    tops = list(z1) if isinstance(z1, (list, tuple)) else [z1] * len(poly)
+    bottom = [bm.verts.new((x, y, z0)) for x, y in poly]
+    top = [bm.verts.new((x, y, z)) for (x, y), z in zip(poly, tops)]
+    faces = [bm.faces.new(list(reversed(bottom))), bm.faces.new(top)]
+    sides = []
+    count = len(poly)
+    for k in range(count):
+        j = (k + 1) % count
+        sides.append(bm.faces.new([bottom[k], bottom[j], top[j], top[k]]))
+    for face in faces:
+        face.material_index = material_index
+    for face in sides:
+        face.material_index = material_index if side_index is None else side_index
+    return bottom + top
+
+
+def bm_obox(bm, origin, u, s0, s1, d0, d1, z0, z1, material_index=0):
+    """Box in a rotated frame: ``s`` along the unit vector ``u``, ``d`` along its left normal, from ``origin``."""
+    ox, oy = origin
+    ux, uy = u
+    nx, ny = -uy, ux
+    poly = [(ox + ux * s + nx * d, oy + uy * s + ny * d) for s, d in ((s0, d0), (s1, d0), (s1, d1), (s0, d1))]
+    return bm_prism(bm, poly, z0, z1, material_index)
+
+
 def bm_cylinder(bm, center, radius, height, segments=16, radius_top=None, material_index=0):
     geom = bmesh.ops.create_cone(
         bm,
