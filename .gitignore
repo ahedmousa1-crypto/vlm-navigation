@@ -20,6 +20,7 @@ blender/assets/*
 
 # Rendered dataset (regenerable; published on Hugging Face)
 dataset/*
+dataset_oldtown_*/
 !dataset/images/
 dataset/images/*
 !dataset/images/.gitkeep

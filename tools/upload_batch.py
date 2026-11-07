@@ -12,7 +12,8 @@ Modes:
   python tools/upload_batch.py retrace --repo ahd03/vln-synthetic-streets
   python tools/upload_batch.py card --repo ahd03/vln-synthetic-streets
 
-Uploaded sample ids are tracked in dataset/uploaded.json.
+Uploaded sample ids are tracked in <dataset>/uploaded.json. World 2 renders into its own
+folders: python tools/upload_batch.py new --repo ... --dataset dataset_oldtown_0 --prefix w2
 """
 
 import argparse
@@ -32,7 +33,7 @@ from export_hf import EMBODIMENTS, FEATURES  # noqa: E402
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATASET = os.path.join(REPO_ROOT, "dataset")
-LAYOUT = os.path.join(REPO_ROOT, "blender", "world", "layout.json")
+LAYOUTS = [os.path.join(REPO_ROOT, "blender", world, "layout.json") for world in ("world", "world_oldtown")]
 
 
 def load_records():
@@ -56,8 +57,13 @@ def save_registry(registry):
 
 
 def test_blocks():
-    with open(LAYOUT, encoding="utf-8") as handle:
-        return set(json.load(handle).get("test_blocks", []))
+    """Held-out blocks of every world (World 1 ids are b.., World 2 ids are f..)."""
+    blocks = set()
+    for path in LAYOUTS:
+        if os.path.isfile(path):
+            with open(path, encoding="utf-8") as handle:
+                blocks |= set(json.load(handle).get("test_blocks", []))
+    return blocks
 
 
 def split_of(record, blocks):
@@ -119,7 +125,7 @@ def upload_new(args):
         rows = [r for r in pending if split_of(r, blocks) == split]
         if not rows:
             continue
-        shard = f"data/{split}-p2-{args.batch}.parquet"
+        shard = f"data/{split}-{args.prefix}-{args.batch}.parquet"
         with tempfile.TemporaryDirectory() as tmp:
             local = os.path.join(tmp, "shard.parquet")
             write_shard(rows, local)
@@ -288,7 +294,11 @@ def main():
     parser.add_argument("--repo", required=True)
     parser.add_argument("--batch", default="b00", help="Shard name suffix for mode 'new'.")
     parser.add_argument("--delete", action="store_true", help="Delete local files of uploaded views (mode 'new').")
+    parser.add_argument("--dataset", default=DATASET, help="Local dataset folder (default: dataset).")
+    parser.add_argument("--prefix", default="p2", help="Shard name prefix for mode 'new' (World 2: w2).")
     args = parser.parse_args()
+    global DATASET
+    DATASET = os.path.abspath(args.dataset)
     return {"new": upload_new, "retrace": retrace, "card": write_card}[args.mode](args)
 
 

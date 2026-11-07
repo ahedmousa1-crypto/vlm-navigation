@@ -15,12 +15,12 @@ split, and ``block_side_at`` (layout.py) finds the face around a point.
 import math
 import random
 
-NX, NY = 6, 5                 # grid nodes; faces are (NX - 1) x (NY - 1)
+NX, NY = 8, 7                 # grid nodes; faces are (NX - 1) x (NY - 1)
 PITCH_X, PITCH_Y = 36.0, 32.0
 JITTER = 6.5                  # interior node jitter (m)
 EDGE_JITTER = 2.5             # boundary nodes move less, so the outline stays tidy
 MAIN_LINE = 1                 # horizontal grid line with the road
-WALL_LINE = 2                 # horizontal grid line whose street is the upper promenade
+WALL_LINE = 3                 # horizontal grid line whose street is the upper promenade
 UPPER_Z = 2.1                 # height of the upper town
 RISE, TREAD = 0.15, 0.32
 RAMP_SLOPE = 1.0 / 8.0
@@ -31,11 +31,12 @@ BACKGROUND_DEPTH = 11.0
 MARGIN = 26.0
 
 # Horizontal street widths per grid line (outer lines are narrower lanes).
-H_WIDTH = {0: 5.5, 1: ROAD_W + 2 * 2.6, 2: 7.5, 3: 6.0, 4: 5.0}
+H_WIDTH = {0: 5.5, 1: ROAD_W + 2 * 2.6, 2: 6.0, 3: 7.5, 4: 6.0, 5: 5.5, 6: 5.0}
 # Cross streets that meet the retaining wall: what connects them to the upper town.
-WALL_LINKS = {1: "stairs", 3: "ramp", 4: "stairs", 5: "stairs"}
-SQUARES = {(2, 1): "stair_square", (4, 0): "market_square", (1, 3): "church_square"}
-TEST_FACES = ("f00", "f31", "f13", "f42")
+WALL_LINKS = {1: "stairs", 2: "ramp", 4: "stairs", 6: "ramp", 7: "stairs"}
+SQUARES = {(3, 2): "stair_square", (5, 0): "market_square", (1, 4): "church_square", (5, 4): "upper_square",
+           (1, 1): "small_square"}
+TEST_FACES = ("f00", "f20", "f42", "f61", "f33", "f14", "f64", "f55")
 
 
 # ---- 2D geometry ------------------------------------------------------------

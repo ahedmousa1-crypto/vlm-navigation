@@ -56,6 +56,8 @@ def parse_args():
     parser.add_argument("--out", default=os.path.join(os.path.dirname(HERE), "dataset"))
     parser.add_argument("--views", nargs="*", default=None, help="Camera names to render (default: all).")
     parser.add_argument("--limit", type=int, default=0, help="Render at most this many views (0 = all).")
+    parser.add_argument("--shard", default=None,
+                        help="k/n: only every n-th camera starting at k, so several renderers can run side by side.")
     parser.add_argument("--max_tasks", type=int, default=2, help="Tasks (samples) per view.")
     parser.add_argument("--samples", type=int, default=48, help="EEVEE render samples.")
     parser.add_argument("--skip_existing", action="store_true", help="Skip views that already have an image.")
@@ -159,6 +161,9 @@ def main():
     cams = sorted((obj for obj in (views.objects if views else []) if obj.type == "CAMERA"), key=lambda o: o.name)
     if args.views:
         cams = [cam for cam in cams if cam.name in set(args.views)]
+    if args.shard:
+        k, n = (int(v) for v in args.shard.split("/"))
+        cams = cams[k::n]
     if args.skip_existing:
         cams = [cam for cam in cams if not os.path.isfile(os.path.join(out_dir, "images", cam.name + ".png"))]
     if args.limit and not args.skip_done:  # with --skip_done the limit applies after skipping

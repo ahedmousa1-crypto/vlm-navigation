@@ -174,7 +174,7 @@ class OldTownBuilder(WorldBuilder):
                                  [self.mat["sidewalk"], self.mat["curb"]], self.coll["Blocks"])
 
         # Two zebra crossings, bars parallel to the traffic.
-        for seg in (1, 3):
+        for seg in (1, 3, 5):
             p0, p1 = road[seg + 1], road[seg + 2]   # road[0] is the extension to the world edge
             u = norm(sub(p1, p0))
             mid = lerp(p0, p1, 0.5)
@@ -211,7 +211,7 @@ class OldTownBuilder(WorldBuilder):
                     if car is not None:
                         car["color_name"] = paint.split("_", 1)[1]
                 s += self.rng.uniform(5.8, 7.0)
-            if k in (2, 4):
+            if k in (2, 4, 6):
                 p = add(add(p0, mul(u, length * self.rng.uniform(0.3, 0.7))), mul(n, half * 0.5))
                 paint = self.rng.choice(CAR_PAINTS)
                 car = self.place_world(props.make_car(paint), p[0], p[1], 0.01, angle_of(u) + math.pi,
@@ -705,28 +705,28 @@ class OldTownBuilder(WorldBuilder):
             off = self.rng.uniform(-half, half) if half > 0 else 0.0
             upper = seg["j"] >= j_wall
             z = self.H if upper else 0.0
-            if seg["axis"] == "v" and seg["j"] == j_wall - 1 and t > length - 18.0:
-                return None  # near the wall: stairs and ramps
+            if seg["axis"] == "v" and seg["j"] == j_wall - 1 and t > length - 24.0:
+                return None  # near the wall: stairs and ramps (a ramp runs about 17 m from the wall)
         p = add(add(a, mul(u, t)), mul(left(u), off))
         return p[0], p[1], z, angle_of(u)
 
     def furnish_streets(self):
         streets = self.layout["streets"]
         # People walking along the streets, mostly in the walking direction of the street.
-        for _ in range(70):
+        for _ in range(140):
             spot = self.street_spot(self.rng.choice(streets))
             if spot:
                 x, y, z, yaw = spot
                 self.add_person(x, y, z, yaw + self.rng.choice((0.0, math.pi)) + self.rng.uniform(-0.3, 0.3),
                                 pose="walking" if self.rng.random() < 0.75 else "standing")
         # A few groups on the wider streets and the promenade.
-        for _ in range(8):
+        for _ in range(16):
             seg = self.rng.choice([s for s in streets if s["width"] >= 6.0])
             spot = self.street_spot(seg, margin=2.0)
             if spot:
                 self.add_group(spot[0], spot[1], spot[2])
         # Parked scooters and bikes against the house fronts, benches and lanterns on the promenade.
-        for _ in range(26):
+        for _ in range(50):
             seg = self.rng.choice(streets)
             spot = self.street_spot(seg)
             if spot is None:
@@ -768,11 +768,11 @@ class OldTownBuilder(WorldBuilder):
                     self.add_lantern(p[0], p[1], self.H, angle_of(u) + math.pi / 2)
                 s += self.rng.uniform(5.0, 8.0)
         # Trash cans and cats or dogs here and there.
-        for _ in range(12):
+        for _ in range(24):
             spot = self.street_spot(self.rng.choice(streets), margin=0.7)
             if spot:
                 self.place_world(props.make_trash_can(), spot[0], spot[1], spot[2], 0.0, "surface_obstacle_trash_can")
-        spots = [self.street_spot(self.rng.choice(streets)) for _ in range(14)]
+        spots = [self.street_spot(self.rng.choice(streets)) for _ in range(28)]
         self.add_animals_at([s[:3] for s in spots if s])
 
     def add_animals_at(self, spots):
