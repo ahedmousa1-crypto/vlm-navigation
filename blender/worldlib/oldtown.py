@@ -48,6 +48,8 @@ class OldTownBuilder(WorldBuilder):
         self.wall_gaps = []      # (x0, x1) stretches of the wall top left open for stairs and ramps
         self.faces = layout["blocks"]
         self.people = 0
+        self.sidewalks = []      # main street sidewalk outlines, for the height of things placed on them
+        self.road_quads = []
 
     # ---- small helpers ---------------------------------------------------
 
@@ -152,6 +154,8 @@ class OldTownBuilder(WorldBuilder):
             for k in range(len(road) - 1):
                 bm_prism(bm, [rgt[k], rgt[k + 1], lft[k + 1], lft[k]], ot.BASE_Z, 0.01)
 
+        self.road_quads = [[rgt[k], rgt[k + 1], lft[k + 1], lft[k]] for k in range(len(road) - 1)]
+
         add_bmesh_object("surface_road_main", "road", road_builder, [self.mat["road"]], self.coll["Ground"])
 
         # Raised sidewalks between the road and the house fronts of the faces on both sides.
@@ -164,6 +168,7 @@ class OldTownBuilder(WorldBuilder):
                 b = self.fpt(face, k, self.edge_len(face, k), 0.0)
                 walk_w = (face["edge_widths"][k] - ot.ROAD_W) / 2
                 pa, pb = add(a, mul(m, -walk_w)), add(b, mul(m, -walk_w))
+                self.sidewalks.append([pa, pb, b, a])
                 add_bmesh_object(f"surface_sidewalk_{face['id']}", "sidewalk",
                                  lambda bm, q=[pa, pb, b, a]: bm_prism(bm, q, ot.BASE_Z, ot.SIDEWALK_Z, 0, side_index=1),
                                  [self.mat["sidewalk"], self.mat["curb"]], self.coll["Blocks"])
@@ -442,18 +447,13 @@ class OldTownBuilder(WorldBuilder):
         return building
 
     def street_z(self, p, face_z):
-        """Ground height on the street just outside a house front (raised on the main street's sidewalks)."""
+        """Ground height on the street just outside a house front (sidewalk, road or cobblestones)."""
         if face_z > 0.0:
             return face_z
-        road = self.layout["road"]
-        for p0, p1 in zip(road, road[1:]):
-            u = norm(sub(tuple(p1), tuple(p0)))
-            rel = sub(p, tuple(p0))
-            along = rel[0] * u[0] + rel[1] * u[1]
-            across = abs(rel[0] * -u[1] + rel[1] * u[0])
-            seg = math.hypot(*sub(tuple(p1), tuple(p0)))
-            if -1.0 <= along <= seg + 1.0 and across <= ot.H_WIDTH[self.layout["main_line"]] / 2 + 0.05:
-                return ot.SIDEWALK_Z
+        if any(ot.point_in_poly(p, q) for q in self.sidewalks):
+            return ot.SIDEWALK_Z
+        if any(ot.point_in_poly(p, q) for q in self.road_quads):
+            return 0.01
         return 0.0
 
     def build_background(self):
@@ -493,6 +493,26 @@ class OldTownBuilder(WorldBuilder):
                 lot = {"quad": quad, "edge": 0}   # street corners first; left of the street edge is the lot
                 outer["ground_z"] = zs.pop()
                 self.build_house(outer, lot, False, floors=self.rng.randint(3, 5))
+        # A taller ring at the world edge closes the far views (road ends, corners).
+        ex0, ex1, ey0, ey1 = self.layout["extent"]
+        inner = 9.0
+        ring = [((ex1 - inner, ey0 + inner), (ex0 + inner, ey0 + inner)), ((ex0 + inner, ey1 - inner), (ex1 - inner, ey1 - inner)),
+                ((ex0 + inner, ey0 + inner), (ex0 + inner, ey1 - inner)), ((ex1 - inner, ey1 - inner), (ex1 - inner, ey0 + inner))]
+        for p, q in ring:
+            u = norm(sub(q, p))
+            m = left(u)               # outward, toward the world edge
+            length = math.hypot(*sub(q, p))
+            s = 0.0
+            while s < length - 3.0:
+                lot_w = min(self.rng.uniform(9.0, 14.0), length - s)
+                a, b = lerp(p, q, s / length), lerp(p, q, (s + lot_w) / length)
+                quad = [a, b, add(b, mul(m, inner - 0.5)), add(a, mul(m, inner - 0.5))]
+                s += lot_w
+                zs = {self.level_z(*pt) for pt in quad}
+                if len(zs) > 1:
+                    continue
+                outer["ground_z"] = zs.pop()
+                self.build_house(outer, {"quad": quad, "edge": 0}, False, floors=self.rng.randint(5, 7))
 
     # ---- squares ------------------------------------------------------------
 
@@ -659,6 +679,7 @@ class OldTownBuilder(WorldBuilder):
                     qp = self.fpt(face, k, s, d + 1.35 + q * 0.75)
                     self.add_person(qp[0], qp[1], z, angle_of((-m[0], -m[1])), reserve=False)
                 end = d + 1.35 + (n - 1) * 0.75
+                stall["queue_end"] = list(self.fpt(face, k, s, end + 0.9))
                 self.add_zone("queue", [self.fpt(face, k, s - 0.9, d + 0.9), self.fpt(face, k, s + 0.9, d + 0.9),
                                         self.fpt(face, k, s + 0.9, end + 0.9), self.fpt(face, k, s - 0.9, end + 0.9)])
                 xs = [self.fpt(face, k, s + ds, dd)[0] for ds in (-0.9, 0.9) for dd in (d, end + 0.9)]

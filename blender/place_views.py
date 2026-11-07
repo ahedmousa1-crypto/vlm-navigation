@@ -33,7 +33,7 @@ from worldlib.planner import HumanPlanner  # noqa: E402
 from worldlib.scene_setup import make_view_camera  # noqa: E402
 from worldlib.tasks import ViewTasks  # noqa: E402
 
-STAND_CLASSES = ("sidewalk", "plaza", "park_path", "skate_area")
+STAND_CLASSES = ("sidewalk", "plaza", "park_path", "skate_area", "cobblestone")
 CLEAR_AHEAD_M = 7.0
 HEADING_JITTER_DEG = 14.0
 
@@ -89,6 +89,34 @@ def park_heading(block, x, y, rng):
     return best[1] + (math.pi if rng.random() < 0.5 else 0.0)
 
 
+def street_heading(layout, x, y, rng):
+    """Old town: along the nearest street centerline, either way."""
+    best = None
+    for seg in layout["streets"]:
+        (x0, y0), (x1, y1) = seg["a"], seg["b"]
+        dx, dy = x1 - x0, y1 - y0
+        t = max(0.0, min(1.0, ((x - x0) * dx + (y - y0) * dy) / ((dx * dx + dy * dy) or 1e-9)))
+        d = math.hypot(x - (x0 + t * dx), y - (y0 + t * dy))
+        if best is None or d < best[0]:
+            best = (d, math.atan2(dy, dx))
+    return best[1] + (math.pi if rng.random() < 0.5 else 0.0)
+
+
+def stair_spots(rng):
+    """Old town: (x, y, heading) spots 6-12 m from stairs and ramps, facing them, from above and below."""
+    spots = []
+    for obj in bpy.context.scene.objects:
+        if obj.get("category") not in ("stairs", "ramp"):
+            continue
+        corners = [obj.matrix_world @ Vector(c) for c in obj.bound_box]
+        gx, gy = sum(c.x for c in corners) / 8, sum(c.y for c in corners) / 8
+        for _ in range(10):
+            a, d = rng.uniform(0, 2 * math.pi), rng.uniform(6.0, 12.0)
+            x, y = gx + math.cos(a) * d, gy + math.sin(a) * d
+            spots.append((x, y, math.atan2(gy - y, gx - x)))
+    return spots
+
+
 def feature_spots(layout, rng):
     """(x, y, heading) camera spots 7-12 m in front of entrances, bridges and skate platforms, facing them."""
     spots = []
@@ -113,6 +141,8 @@ def feature_spots(layout, rng):
             a, d = rng.uniform(0, 2 * math.pi), rng.uniform(7.0, 11.0)
             x, y = gx + math.cos(a) * d, gy + math.sin(a) * d
             spots.append((x, y, math.atan2(gy - y, gx - x)))
+    if layout.get("world") == "oldtown":
+        spots += stair_spots(rng)
     rng.shuffle(spots)
     return spots
 
@@ -135,6 +165,8 @@ def main():
              "placed": 0, "tried": 0}
     scene = bpy.context.scene
     vis = VisTree()
+    oldtown = layout.get("world") == "oldtown"
+    prefix = "ot_view" if oldtown else "view"  # World 2 names keep sample ids and image names unique
 
     def try_camera(x, y, heading, spacing, allowed=None):
         allowed = allowed or stand_ids
@@ -150,8 +182,13 @@ def main():
                 return False
         if not clear_ahead(planner, x, y, heading):
             return False
+        if layout.get("world") == "oldtown":
+            nx0, nx1, ny0, ny1 = layout["nav_extent"]
+            ax, ay = x + math.cos(heading) * 12.0, y + math.sin(heading) * 12.0
+            if not (nx0 <= ax <= nx1 and ny0 <= ay <= ny1):
+                return False  # facing out of the town
         state["tried"] += 1
-        name = f"view_{state['next']:04d}"
+        name = f"{prefix}_{state['next']:04d}"
         cam = make_view_camera(name, x, y, planner.height_at(x, y), heading)
         cam["block"] = block["id"]
         cam["variant"] = block["variant"]
@@ -189,7 +226,16 @@ def main():
         block, side = lay.block_side_at(layout, x, y)
         if block is None or (args.new_only and not block.get("new")):
             continue
-        if block.get("park") and int(planner.cls[rows[index], cols[index]]) == CLASS_ID["park_path"]:
+        if oldtown:
+            cls = int(planner.cls[rows[index], cols[index]])
+            if cls == CLASS_ID["plaza"]:
+                # In a square: look across it, roughly toward its middle.
+                cx = sum(p[0] for p in block["inset"]) / 4
+                cy = sum(p[1] for p in block["inset"]) / 4
+                heading = math.atan2(cy - y, cx - x) + math.radians(rng.uniform(-70, 70))
+            else:
+                heading = street_heading(layout, x, y, rng)
+        elif block.get("park") and int(planner.cls[rows[index], cols[index]]) == CLASS_ID["park_path"]:
             heading = park_heading(block, x, y, rng)
         elif int(planner.cls[rows[index], cols[index]]) == CLASS_ID["skate_area"]:
             heading = rng.choice((0.0, 0.5, 1.0, 1.5)) * math.pi

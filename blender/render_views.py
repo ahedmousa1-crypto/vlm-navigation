@@ -120,6 +120,7 @@ def make_record(cam, layout, view_tasks, task, index, look):
             "look": look["name"],
             "hdri": look["hdri"],
             "lighting_preset": look["preset"],
+            "world": layout.get("world", "streets"),
             "world_seed": layout["seed"],
             "block": view_tasks.block["id"] if view_tasks.block else None,
             "variant": view_tasks.block["variant"] if view_tasks.block else None,

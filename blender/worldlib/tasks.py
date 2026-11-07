@@ -60,7 +60,14 @@ OBJECT_TARGETS = {
     "basketball_hoop": GO,
     "skate_ramp": GO,
     "wheelie_bin": GO,
+    # World 2 (old town).
+    "person": ["Walk up to the {noun}{where}", "Go to the {noun}{where}"],
+    "cafe_table": GO + ["Go sit at the {noun}{where}"],
+    "market_stall": GO + ["Walk up to the {noun}{where}"],
+    "flower_pot": GO,
+    "scooter": GO,
 }
+QUEUE_TASKS = ["Join the queue at the {noun}{where}", "Get in line at the {noun}{where}"]
 BASE_NOUN = {
     "bench": "bench", "trash_can": "trash can", "bike": "parked bike", "planter": "planter",
     "door": "building entrance", "street_lamp": "street lamp", "tree": "tree", "bush": "bush",
@@ -70,22 +77,28 @@ BASE_NOUN = {
     "fire_hydrant": "fire hydrant", "vending_machine": "vending machine", "recycling_bin": "recycling bins",
     "sculpture": "sculpture", "mailbox": "mailbox", "basketball_hoop": "basketball hoop",
     "skate_ramp": "skate ramp", "wheelie_bin": "garbage bin",
+    "person": "person", "cafe_table": "cafe table", "market_stall": "market stall", "flower_pot": "flower pot",
+    "scooter": "parked scooter",
 }
 # Relative weight per target kind when balancing the dataset (higher = picked more often).
 KIND_WEIGHT = {
     "street_lamp": 0.15, "tree": 0.6, "bush": 0.6, "car": 0.6, "trash_can": 0.7, "planter": 0.7,
     "terrace": 3.0, "platform": 3.0, "door": 1.6, "crosswalk": 1.6, "bridge": 2.0,
     "cat": 1.8, "dog": 1.8, "fountain": 1.5, "swings": 1.3, "slide": 1.3,
+    "person": 1.4, "cafe_table": 1.3, "market_stall": 1.5, "scooter": 0.9, "flower_pot": 0.6, "promenade": 3.0,
 }
 RELATION_M = 2.5          # landmark must be this close to the target to be "beside" it
 RELATION_WORDS = (" beside the {}", " next to the {}", " near the {}")
 RELATION_RATE = 0.35      # share of already-unique targets that still get a landmark phrase, for variety
-DYNAMIC_KINDS = ("cat", "dog")
+DYNAMIC_KINDS = ("cat", "dog", "person")
 CROSSWALK_TASKS = ["Cross the street", "Cross the street at the crosswalk", "Get to the other side of the street"]
 BRIDGE_TASKS = ["Cross the bridge", "Walk over the bridge", "Cross the pond on the bridge"]
 TERRACE_TASKS = ["Go up to the terrace{where}", "Get onto the raised terrace{where}"]
 PLATFORM_TASKS = ["Get up onto the platform{where}", "Go up to the top of the skate platform{where}"]
-UPPER_KINDS = ("terrace", "platform")
+PROMENADE_TASKS = ["Go up to the promenade{where}", "Get up to the upper street{where}",
+                   "Climb up to the upper level{where}"]
+UPPER_KINDS = ("terrace", "platform", "promenade")
+SOCIAL_NEAR_M = 1.0       # a path this close to a group, queue or cafe seating is a Social Norms case
 TERRAIN_PHRASES = {
     "crosswalk": "cross the street at the crosswalk",
     "bridge": "cross the bridge",
@@ -104,6 +117,9 @@ VARIANT_CONTEXT = {
     "neighborhood": "Residential street with houses, front lawns and driveways",
     "park": "Park with paths, trees, a fountain, a pond and a playground",
     "skate": "Skate park and basketball court",
+    "old_lower": "Old town street with cobblestones between plastered houses",
+    "old_upper": "Upper old town above a stone retaining wall",
+    "old_square": "Old town square with shops and cafes around it",
 }
 
 
@@ -274,6 +290,12 @@ def noun_of(obj, lamps_on=False):
     color = obj.get("color_name")
     if category in ("cat", "dog", "car", "food_truck") and color:
         return f"{color} {BASE_NOUN[category]}"
+    if category == "person" and color:
+        return f"person in the {color} {obj.get('garment', 'shirt')}"
+    if category == "scooter" and color:
+        return f"{color} scooter"
+    if category == "market_stall" and color:
+        return f"market stall with the {color} awning"
     if category == "tree" and obj.get("tree_style") == "conifer":
         return "pine tree"
     if category == "street_lamp" and lamps_on:
@@ -390,6 +412,12 @@ class ViewTasks:
                 goal = tuple(obj["front"])
                 if obj.get("stairs") and obj.get("ramp"):
                     cand["alts"] = (obj["stairs"], obj["ramp"])  # porch: steps or ramp both lead up
+            elif category == "market_stall" and obj.get("queue_end"):
+                goal = tuple(obj["queue_end"])  # people are waiting: the polite goal is the end of the line
+                cand["queue"] = True
+            elif category == "market_stall":
+                front = obj.matrix_world @ Vector((0.0, -1.3, 0.0))  # customers stand on the crates' side
+                goal = (front.x, front.y)
             elif category == "bench":
                 # In front of the seat (benches face local -Y), not behind the backrest.
                 front = obj.matrix_world @ Vector((0.0, -0.8, 0.0))
@@ -433,12 +461,15 @@ class ViewTasks:
             gx, gy = lay.side_point(block, terrace["side"], s_mid, ring + depth + 2.5)
             out.append(("terrace", f"surface_stairs_{block['id']}", f"surface_ramp_{block['id']}", (gx, gy), terrace["z"]))
         for platform in self.layout.get("platforms", []):
-            out.append(("platform", platform["stairs"], platform["ramp"], tuple(platform["goal"]), platform["z"]))
+            out.append((platform.get("kind", "platform"), platform["stairs"], platform["ramp"], tuple(platform["goal"]),
+                        platform["z"]))
         cands = []
         for kind, stairs, ramp, (gx, gy), z in out:
             dist = math.hypot(gx - self.feet[0], gy - self.feet[1])
             if not MIN_DIST <= dist <= MAX_DIST:
                 continue
+            if self.feet[2] > z - 0.5:
+                continue  # already up there
             if self.scene.objects.get(stairs) is None or self.scene.objects.get(ramp) is None:
                 continue
             px, py, d = project(self.scene, self.cam, (gx, gy, z))
@@ -494,6 +525,10 @@ class ViewTasks:
             template = self.rng.choice(TERRACE_TASKS)
         elif kind == "platform":
             template = self.rng.choice(PLATFORM_TASKS)
+        elif kind == "promenade":
+            template = self.rng.choice(PROMENADE_TASKS)
+        elif cand.get("queue"):
+            template = self.rng.choice(QUEUE_TASKS)
         else:
             template = self.rng.choice(OBJECT_TARGETS[kind])
         text = template.format(noun=cand.get("noun", ""), where=cand.get("where", direction_word(cand["px"])))
@@ -509,7 +544,7 @@ class ViewTasks:
         if kind in OBJECT_TARGETS:
             clauses.append(f"continue to the {cand['noun']}")
         elif kind in UPPER_KINDS:
-            clauses.append("continue up onto the " + ("terrace" if kind == "terrace" else "platform"))
+            clauses.append("continue up onto the " + kind)
         text = clauses[0][0].upper() + clauses[0][1:]
         for clause in clauses[1:]:
             text += ", then " + clause
@@ -584,7 +619,7 @@ class ViewTasks:
         for path in paths:
             names.update(self.planner.classes_along(path[2]))
         categories = []
-        if "crosswalk" in names:
+        if "crosswalk" in names or cand.get("queue") or self.passes_social(paths[0][2]):
             categories.append("Social Norms")
         if names & {"stairs", "ramp", "curb_ramp", "bridge"}:
             categories.append("Geometric Terrain")
@@ -618,6 +653,18 @@ class ViewTasks:
             row, col = planner.to_cell(x, y)
             window = planner.cls[max(0, row - reach): row + reach + 1, max(0, col - reach): col + reach + 1]
             if any(int(v) in obstacle_ids for v in set(window.flatten().tolist())):
+                return True
+        return False
+
+    def passes_social(self, points, radius=SOCIAL_NEAR_M):
+        """True when the path passes a group, a queue or cafe seating (old town social zones)."""
+        planner = self.planner
+        if not planner.social.any():
+            return False
+        reach = int(radius / planner.cell)
+        for x, y, _z in points[2:]:
+            row, col = planner.to_cell(x, y)
+            if planner.social[max(0, row - reach): row + reach + 1, max(0, col - reach): col + reach + 1].any():
                 return True
         return False
 
@@ -682,9 +729,11 @@ class ViewTasks:
         landmarks = getattr(self, "landmarks", [])
         if any(self.scene.objects[l["object"]].get("in_traffic") for l in landmarks):
             parts.append("Cars stopped in the driving lanes")
-        animals = sorted({l["noun"] for l in landmarks if l["kind"] in DYNAMIC_KINDS})
+        animals = sorted({l["noun"] for l in landmarks if l["kind"] in ("cat", "dog")})
         if animals:
             parts.append(", ".join(a.capitalize() for a in animals) + " nearby")
+        if any(l["kind"] == "person" for l in landmarks):
+            parts.append("People walking and standing nearby")
         seen = sorted({t["target_kind"].replace("_", " ") for t in tasks})
         if seen:
             parts.append("Visible targets: " + ", ".join(seen))
