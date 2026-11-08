@@ -45,6 +45,7 @@ def main():
     parser.add_argument("--max_batches", type=int, default=100)
     parser.add_argument("--world", choices=("streets", "oldtown"), default="streets")
     parser.add_argument("--shard", default=None, help="k/n for side-by-side renderers (World 2).")
+    parser.add_argument("--max_tasks", type=int, default=2, help="Tasks (samples) per view.")
     parser.add_argument("--log", default=None)
     args = parser.parse_args()
     oldtown = args.world == "oldtown"
@@ -61,7 +62,7 @@ def main():
         before, views_before = count_records(dataset)
         start = time.perf_counter()
         code = run([args.blender, "--background", world, "--python", "blender/render_views.py", "--",
-                    "--out", dataset, "--skip_done", "--limit", str(args.batch_size)] + shard_args, args.log)
+                    "--out", dataset, "--skip_done", "--limit", str(args.batch_size), "--max_tasks", str(args.max_tasks)] + shard_args, args.log)
         after, views_after = count_records(dataset)
         new_views = len(views_after - views_before)
         print(f"batch {index}: render exit={code} new_views={new_views} samples={before}->{after} "

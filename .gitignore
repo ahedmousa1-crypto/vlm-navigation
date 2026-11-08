@@ -35,3 +35,4 @@ reports/
 
 # Fine-tuning outputs (scores, logs, adapters)
 finetune/results/
+.claude/settings.local.json

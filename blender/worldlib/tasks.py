@@ -687,7 +687,7 @@ class ViewTasks:
         return (self.balance.get(kind, 0) + 1) / KIND_WEIGHT.get(kind, 1.0) * (1.0 + 0.3 * self.rng.random())
 
     def generate(self, max_tasks=2):
-        """Up to one Goal and one Directions task, for different targets."""
+        """Up to ``max_tasks`` tasks alternating Goal and Directions, each for a different target."""
         if self.start is None:
             return []
         targets, self.landmarks = self.object_candidates()
@@ -696,7 +696,7 @@ class ViewTasks:
                  + self.upper_level_candidates())
         cands.sort(key=lambda c: self.score(c["kind"]))
         tasks, used = [], set()
-        want = ["Goal", "Directions"][:max_tasks] if max_tasks > 1 else ["Goal"]
+        want = (["Goal", "Directions"] * max_tasks)[:max_tasks]
         for task_type in want:
             for cand in cands:
                 if cand["object"] in used or len(tasks) >= max_tasks:
