@@ -46,6 +46,7 @@ def main():
     parser.add_argument("--world", choices=("streets", "oldtown"), default="streets")
     parser.add_argument("--shard", default=None, help="k/n for side-by-side renderers (World 2).")
     parser.add_argument("--max_tasks", type=int, default=2, help="Tasks (samples) per view.")
+    parser.add_argument("--upload_tries", type=int, default=5, help="Upload attempts before giving up.")
     parser.add_argument("--log", default=None)
     args = parser.parse_args()
     oldtown = args.world == "oldtown"
@@ -73,10 +74,17 @@ def main():
             print("build_dataset failed; see log", flush=True)
             return 1
         tag = f"b{int(time.time())}" + (f"s{args.shard.split('/')[0]}" if args.shard else "")
-        if run([sys.executable, "tools/upload_batch.py", "new", "--repo", args.repo, "--batch", tag, "--delete",
-                "--dataset", dataset, "--prefix", prefix], args.log):
-            print("upload failed; local files kept, rerun to retry", flush=True)
-            return 1
+        upload = [sys.executable, "tools/upload_batch.py", "new", "--repo", args.repo, "--batch", tag, "--delete",
+                  "--dataset", dataset, "--prefix", prefix]
+        for attempt in range(1, args.upload_tries + 1):
+            if run(upload, args.log) == 0:
+                break
+            if attempt == args.upload_tries:
+                print("upload failed; local files kept, rerun to retry", flush=True)
+                return 1
+            wait = 60 * 2 ** (attempt - 1)  # 1, 2, 4, 8 minutes: rides out short network drops
+            print(f"batch {index}: upload attempt {attempt} failed, retrying in {wait}s", flush=True)
+            time.sleep(wait)
         print(f"batch {index}: uploaded as {tag}", flush=True)
     if not oldtown:  # the card counts World 1's local records; it is updated for both worlds separately
         run([sys.executable, "tools/upload_batch.py", "card", "--repo", args.repo], args.log)
