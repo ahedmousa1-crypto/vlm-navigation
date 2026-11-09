@@ -289,6 +289,7 @@ def write_card(args):
 
 
 def main():
+    global DATASET
     parser = argparse.ArgumentParser(description="Batch uploads to the Hugging Face Hub.")
     parser.add_argument("mode", choices=("new", "retrace", "card"))
     parser.add_argument("--repo", required=True)
@@ -297,7 +298,6 @@ def main():
     parser.add_argument("--dataset", default=DATASET, help="Local dataset folder (default: dataset).")
     parser.add_argument("--prefix", default="p2", help="Shard name prefix for mode 'new' (World 2: w2).")
     args = parser.parse_args()
-    global DATASET
     DATASET = os.path.abspath(args.dataset)
     return {"new": upload_new, "retrace": retrace, "card": write_card}[args.mode](args)
 
