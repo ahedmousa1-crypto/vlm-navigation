@@ -390,10 +390,10 @@ def block_side_at(layout, x, y):
 
     In the old town (World 2) the blocks are the faces between street centerlines; side is None.
     """
-    if layout.get("world") == "oldtown":
+    if layout.get("world") in ("oldtown", "campus"):
         from .oldtown_layout import point_in_poly
         for face in layout["blocks"].values():
-            if point_in_poly((x, y), face["quad"]):
+            if point_in_poly((x, y), face.get("region", face["quad"])):
                 return face, None
         return None, None
     for block in layout["blocks"].values():

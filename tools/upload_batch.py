@@ -33,7 +33,8 @@ from export_hf import EMBODIMENTS, FEATURES  # noqa: E402
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATASET = os.path.join(REPO_ROOT, "dataset")
-LAYOUTS = [os.path.join(REPO_ROOT, "blender", world, "layout.json") for world in ("world", "world_oldtown")]
+LAYOUTS = {world: os.path.join(REPO_ROOT, "blender", folder, "layout.json")
+           for world, folder in (("streets", "world"), ("oldtown", "world_oldtown"), ("campus", "world_campus"))}
 
 
 def load_records():
@@ -57,17 +58,18 @@ def save_registry(registry):
 
 
 def test_blocks():
-    """Held-out blocks of every world (World 1 ids are b.., World 2 ids are f..)."""
-    blocks = set()
-    for path in LAYOUTS:
+    """Held-out blocks per world. Worlds 2 and 3 both name their faces f<col><row>, so the split is per world."""
+    blocks = {}
+    for world, path in LAYOUTS.items():
         if os.path.isfile(path):
             with open(path, encoding="utf-8") as handle:
-                blocks |= set(json.load(handle).get("test_blocks", []))
+                blocks[world] = set(json.load(handle).get("test_blocks", []))
     return blocks
 
 
 def split_of(record, blocks):
-    return "test" if record.get("synthetic", {}).get("block") in blocks else "train"
+    syn = record.get("synthetic", {})
+    return "test" if syn.get("block") in blocks.get(syn.get("world", "streets"), set()) else "train"
 
 
 def row_for(record, image_bytes=None, mask_bytes=None):
@@ -213,7 +215,7 @@ def retrace(args):
     v1 = [r["sample_id"] for r in load_records() if r.get("synthetic", {}).get("retraced")]
     registry.setdefault("phase1", v1)
     save_registry(registry)
-    print(f"registry phase1={len(registry['phase1'])} (test blocks {sorted(blocks)})")
+    print(f"registry phase1={len(registry['phase1'])} (test blocks {sorted(blocks.get('streets', set()))})")
     return 0
 
 
@@ -280,7 +282,7 @@ def write_card(args):
             {"split": "train", "path": "data/train-*"}, {"split": "test", "path": "data/test-*"}]}],
     }
     body = CARD.format(train=counts["train"], test=counts["test"], goal=goal, directions=len(live) - goal,
-                       blocks=", ".join(sorted(blocks)))
+                       blocks=", ".join(sorted(blocks.get("streets", set()))))
     content = "---\n" + yaml.safe_dump(meta, sort_keys=False) + "---\n" + body
     HfApi().upload_file(path_or_fileobj=content.encode("utf-8"), path_in_repo="README.md", repo_id=args.repo,
                         repo_type="dataset", commit_message="Update dataset card")

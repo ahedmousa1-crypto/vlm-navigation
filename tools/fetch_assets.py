@@ -29,6 +29,14 @@ HDRIS = {
     "qwantani_noon_puresky": "Clear",
     "syferfontein_18d_clear_puresky": "Clear",
     "kloofendal_overcast_puresky": "Cloudy",
+    # World 3 additions: more daytime variety, a misty sky and two sunsets.
+    "kloofendal_43d_clear_puresky": "Clear",
+    "kloofendal_38d_partly_cloudy_puresky": "Partly cloudy",
+    "qwantani_afternoon_puresky": "Clear",
+    "qwantani_late_afternoon_puresky": "Clear",
+    "kloofendal_misty_morning_puresky": "Cloudy",
+    "qwantani_dusk_2_puresky": "Dusk",
+    "belfast_sunset_puresky": "Dusk",
 }
 # World surface -> texture id.
 TEXTURES = {
@@ -38,6 +46,20 @@ TEXTURES = {
     "plaza": "herringbone_pavement",
     "terrace": "stone_pavers",
     "grass": "leafy_grass",
+    # World 3 (campus): decks, gravel, paving, the track, facades, walls, stairs and ramps.
+    "deck": "wood_floor_deck",
+    "gravel": "gravel_floor",
+    "pavers": "rectangular_paving",
+    "stone": "concrete_pavement",
+    "track": "rubberized_track",
+    "facade_brick": "brick_wall_001",
+    "facade_gray": "concrete_wall_008",
+    "facade_light": "grey_plaster",
+    "facade_beige": "painted_plaster_wall",
+    "concrete": "concrete_wall_003",
+    "wall_stone": "stone_wall",
+    "stairs": "concrete_pavement_02",
+    "ramp": "concrete_pavement_03",
 }
 TEXTURE_MAPS = {"Diffuse": "diff", "Rough": "rough", "nor_gl": "nor_gl"}
 # Street props, used only when the world is built with --models.

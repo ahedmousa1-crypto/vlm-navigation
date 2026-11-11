@@ -4,17 +4,23 @@
 - classes.json (id -> name, mask color)
 - previews/<view>_<k>.png: the image with each Human path and the task drawn on it
 - checks every record: image size, trace inside the image, at least 2 points
+- drops views whose image is black (a crashed render) so the batch runner renders them again
+- --photo_fx: phone-photo look on each new image (exposure, white balance, contrast, saturation,
+  vignette, slight blur, sensor noise, JPEG compression), recorded in the sample's "synthetic" field
 
   python tools/build_dataset.py --dataset dataset
 """
 
 import argparse
+import hashlib
+import io
 import json
 import os
+import random
 import sys
 
 import numpy as np
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageEnhance, ImageFilter
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(REPO_ROOT, "blender"))
@@ -65,6 +71,49 @@ def draw_preview(image_path, record, out_path):
     image.save(out_path)
 
 
+BLACK_MEAN = 3.0   # mean grey level below which an image counts as black
+
+
+def photo_fx(path, view):
+    """Phone-photo look, deterministic per view. Geometry is untouched, so traces and masks stay valid."""
+    rng = random.Random(int(hashlib.sha1(view.encode()).hexdigest()[:8], 16))
+    p = {
+        "gain": round(rng.uniform(0.86, 1.14), 3),
+        "wb_r": round(rng.uniform(0.95, 1.05), 3),
+        "wb_b": round(rng.uniform(0.95, 1.05), 3),
+        "contrast": round(rng.uniform(0.9, 1.15), 3),
+        "saturation": round(rng.uniform(0.85, 1.2), 3),
+        "vignette": round(rng.uniform(0.0, 0.28), 3),
+        "blur": round(rng.choice((0.0, 0.0, rng.uniform(0.3, 0.9))), 2),
+        "noise": round(rng.uniform(0.5, 4.0), 2),
+        "jpeg": rng.randint(72, 93),
+    }
+    image = Image.open(path).convert("RGB")
+    a = np.asarray(image, dtype=np.float32)
+    a *= p["gain"]
+    a[..., 0] *= p["wb_r"]
+    a[..., 2] *= p["wb_b"]
+    h, w = a.shape[:2]
+    yy, xx = np.mgrid[0:h, 0:w]
+    r2 = ((xx - w / 2) / (w / 2)) ** 2 + ((yy - h / 2) / (h / 2)) ** 2
+    a *= (1.0 - p["vignette"] * np.clip(r2 / 2.0, 0.0, 1.0))[..., None]
+    image = Image.fromarray(np.clip(a, 0, 255).astype(np.uint8))
+    image = ImageEnhance.Contrast(image).enhance(p["contrast"])
+    image = ImageEnhance.Color(image).enhance(p["saturation"])
+    if p["blur"] > 0:
+        image = image.filter(ImageFilter.GaussianBlur(p["blur"]))
+    a = np.asarray(image, dtype=np.float32)
+    noise_rng = np.random.default_rng(rng.randrange(1 << 30))
+    a += noise_rng.normal(0.0, p["noise"], a.shape[:2])[..., None]          # luma noise
+    a += noise_rng.normal(0.0, p["noise"] * 0.5, a.shape)                   # chroma noise
+    image = Image.fromarray(np.clip(a, 0, 255).astype(np.uint8))
+    buffer = io.BytesIO()
+    image.save(buffer, format="JPEG", quality=p["jpeg"])
+    buffer.seek(0)
+    Image.open(buffer).convert("RGB").save(path)
+    return p
+
+
 def check_record(record, image_size):
     problems = []
     if image_size != EXPECTED_SIZE:
@@ -87,6 +136,7 @@ def main():
     parser.add_argument("--dataset", default=os.path.join(REPO_ROOT, "dataset"))
     parser.add_argument("--pending_only", action="store_true",
                         help="Only records whose image is still on disk (earlier batches were uploaded and deleted).")
+    parser.add_argument("--photo_fx", action="store_true", help="Apply the phone-photo look to new images (World 3).")
     parser.add_argument("--max_previews", type=int, default=-1,
                         help="Draw at most this many previews (-1 = all, 0 = none); checks always run on every record.")
     args = parser.parse_args()
@@ -100,8 +150,45 @@ def main():
     with open(os.path.join(root, "samples.jsonl"), encoding="utf-8") as handle:
         records = [json.loads(line) for line in handle if line.strip()]
 
+    all_records = records
     if args.pending_only:
         records = [r for r in records if os.path.isfile(os.path.join(root, r["image"]))]
+
+    # Black images (a render that crashed): drop the view so the next batch renders it again.
+    black = set()
+    for view in sorted({r["view"] for r in records}):
+        image_path = os.path.join(root, "images", f"{view}.png")
+        if os.path.isfile(image_path):
+            with Image.open(image_path) as image:
+                if float(np.asarray(image.convert("L"), dtype=np.float32).mean()) < BLACK_MEAN:
+                    black.add(view)
+    if black:
+        for view in black:
+            for path in (os.path.join(root, "images", f"{view}.png"), os.path.join(root, "work", "masks_rgb", f"{view}.png"),
+                         os.path.join(root, "masks", f"{view}.png")):
+                if os.path.isfile(path):
+                    os.remove(path)
+            print(f"dropped_black {view}")
+        all_records = [r for r in all_records if r["view"] not in black]
+        records = [r for r in records if r["view"] not in black]
+
+    if args.photo_fx:
+        done = {}
+        for record in records:
+            syn = record.setdefault("synthetic", {})
+            if syn.get("photo_fx") is not None:
+                continue
+            view = record["view"]
+            if view not in done:
+                done[view] = photo_fx(os.path.join(root, record["image"]), view)
+            syn["photo_fx"] = done[view]
+        print(f"photo_fx views={len(done)}")
+    if black or args.photo_fx:
+        tmp = os.path.join(root, "samples.jsonl.tmp")
+        with open(tmp, "w", encoding="utf-8") as handle:
+            for record in all_records:
+                handle.write(json.dumps(record) + "\n")
+        os.replace(tmp, os.path.join(root, "samples.jsonl"))
     views = sorted({r["view"] for r in records})
     for view in views:
         src = os.path.join(root, "work", "masks_rgb", f"{view}.png")

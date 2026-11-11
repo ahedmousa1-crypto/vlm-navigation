@@ -66,6 +66,9 @@ OBJECT_TARGETS = {
     "market_stall": GO + ["Walk up to the {noun}{where}"],
     "flower_pot": GO,
     "scooter": GO,
+    # World 3 (campus and waterfront).
+    "boat": ["Walk to the {noun}{where}", "Go to the {noun}{where}", "Go over to the {noun} moored{where}"],
+    "pier": ["Walk to the end of the pier", "Go out to the end of the pier", "Walk out onto the pier"],
 }
 QUEUE_TASKS = ["Join the queue at the {noun}{where}", "Get in line at the {noun}{where}"]
 BASE_NOUN = {
@@ -79,13 +82,15 @@ BASE_NOUN = {
     "skate_ramp": "skate ramp", "wheelie_bin": "garbage bin",
     "person": "person", "cafe_table": "cafe table", "market_stall": "market stall", "flower_pot": "flower pot",
     "scooter": "parked scooter",
+    "boat": "boat", "pier": "pier",
 }
 # Relative weight per target kind when balancing the dataset (higher = picked more often).
 KIND_WEIGHT = {
     "street_lamp": 0.15, "tree": 0.6, "bush": 0.6, "car": 0.6, "trash_can": 0.7, "planter": 0.7,
     "terrace": 3.0, "platform": 3.0, "door": 1.6, "crosswalk": 1.6, "bridge": 2.0,
     "cat": 1.8, "dog": 1.8, "fountain": 1.5, "swings": 1.3, "slide": 1.3,
-    "person": 1.4, "cafe_table": 1.3, "market_stall": 1.5, "scooter": 0.9, "flower_pot": 0.6, "promenade": 3.0,
+    "person": 0.8, "cafe_table": 1.3, "market_stall": 1.5, "scooter": 0.9, "flower_pot": 0.6, "promenade": 3.0,
+    "boat": 1.6, "pier": 2.2, "quay": 3.0, "amphitheater": 3.0, "library_terrace": 3.0, "food_truck": 1.4,
 }
 RELATION_M = 2.5          # landmark must be this close to the target to be "beside" it
 RELATION_WORDS = (" beside the {}", " next to the {}", " near the {}")
@@ -93,11 +98,18 @@ RELATION_RATE = 0.35      # share of already-unique targets that still get a lan
 DYNAMIC_KINDS = ("cat", "dog", "person")
 CROSSWALK_TASKS = ["Cross the street", "Cross the street at the crosswalk", "Get to the other side of the street"]
 BRIDGE_TASKS = ["Cross the bridge", "Walk over the bridge", "Cross the pond on the bridge"]
+CANAL_BRIDGE_TASKS = ["Cross the bridge", "Walk over the bridge", "Cross the canal on the footbridge",
+                      "Get to the other side of the canal"]
+QUAY_TASKS = ["Go down to the water{where}", "Go down to the lower quay{where}", "Get down to the water's edge{where}"]
+AMPHITHEATER_TASKS = ["Go up to the top of the amphitheater{where}", "Get up to the campus level{where}",
+                      "Climb up past the amphitheater{where}"]
+LIBRARY_TASKS = ["Go up to the library entrance{where}", "Get up onto the terrace in front of the building{where}"]
 TERRACE_TASKS = ["Go up to the terrace{where}", "Get onto the raised terrace{where}"]
 PLATFORM_TASKS = ["Get up onto the platform{where}", "Go up to the top of the skate platform{where}"]
 PROMENADE_TASKS = ["Go up to the promenade{where}", "Get up to the upper street{where}",
                    "Climb up to the upper level{where}"]
-UPPER_KINDS = ("terrace", "platform", "promenade")
+UPPER_KINDS = ("terrace", "platform", "promenade", "amphitheater", "library_terrace")
+LEVEL_KINDS = UPPER_KINDS + ("quay",)
 SOCIAL_NEAR_M = 1.0       # a path this close to a group, queue or cafe seating is a Social Norms case
 TERRAIN_PHRASES = {
     "crosswalk": "cross the street at the crosswalk",
@@ -120,6 +132,15 @@ VARIANT_CONTEXT = {
     "old_lower": "Old town street with cobblestones between plastered houses",
     "old_upper": "Upper old town above a stone retaining wall",
     "old_square": "Old town square with shops and cafes around it",
+    "waterfront": "Waterfront by a lake with a promenade, a bike lane and a boardwalk",
+    "campus_buildings": "University campus between faculty buildings",
+    "campus_slope": "Slope between the waterfront and the campus, with stairs and ramps",
+    "campus_quad": "Campus lawn crossed by paved paths",
+    "campus_library": "Plaza in front of a library raised on a plinth",
+    "campus_construction": "Campus plaza around a construction site",
+    "campus_sports": "Running track around a sports field",
+    "campus_parking": "Campus parking lot",
+    "campus_park": "Park with gravel paths, trees and meadows",
 }
 
 
@@ -408,7 +429,12 @@ class ViewTasks:
             landmarks.append(cand)
             if obj.get("in_traffic") or not MIN_DIST <= dist <= MAX_DIST:
                 continue  # cars stopped in the lanes are landmarks, never goals (the goal would be on the road)
-            if category == "door":
+            if obj.get("queue_end"):
+                goal = tuple(obj["queue_end"])  # people are waiting: the polite goal is the end of the line
+                cand["queue"] = True
+            elif obj.get("goal"):
+                goal = tuple(obj["goal"])[:2]   # boats: the quay beside them; the pier: its far end
+            elif category == "door":
                 goal = tuple(obj["front"])
                 if obj.get("stairs") and obj.get("ramp"):
                     cand["alts"] = (obj["stairs"], obj["ramp"])  # porch: steps or ramp both lead up
@@ -445,7 +471,7 @@ class ViewTasks:
             if not in_frame(px, py, depth, margin=-RES_X * 0.04):
                 continue
             out.append({"kind": category, "object": obj.name, "goal": far, "px": px, "dist": max(da, db),
-                        "noun": BASE_NOUN.get(category, category)})
+                        "noun": BASE_NOUN.get(category, category), "canal": "canal" in obj.name or "foot" in obj.name})
         return out
 
     def upper_level_candidates(self):
@@ -468,7 +494,10 @@ class ViewTasks:
             dist = math.hypot(gx - self.feet[0], gy - self.feet[1])
             if not MIN_DIST <= dist <= MAX_DIST:
                 continue
-            if self.feet[2] > z - 0.5:
+            if kind == "quay":
+                if self.feet[2] < z + 0.5:
+                    continue  # already down there
+            elif self.feet[2] > z - 0.5:
                 continue  # already up there
             if self.scene.objects.get(stairs) is None or self.scene.objects.get(ramp) is None:
                 continue
@@ -520,7 +549,13 @@ class ViewTasks:
         if kind == "crosswalk":
             template = self.rng.choice(CROSSWALK_TASKS)
         elif kind == "bridge":
-            template = self.rng.choice(BRIDGE_TASKS)
+            template = self.rng.choice(CANAL_BRIDGE_TASKS if cand.get("canal") else BRIDGE_TASKS)
+        elif kind == "quay":
+            template = self.rng.choice(QUAY_TASKS)
+        elif kind == "amphitheater":
+            template = self.rng.choice(AMPHITHEATER_TASKS)
+        elif kind == "library_terrace":
+            template = self.rng.choice(LIBRARY_TASKS)
         elif kind == "terrace":
             template = self.rng.choice(TERRACE_TASKS)
         elif kind == "platform":
@@ -543,6 +578,10 @@ class ViewTasks:
         kind = cand["kind"]
         if kind in OBJECT_TARGETS:
             clauses.append(f"continue to the {cand['noun']}")
+        elif kind == "quay":
+            clauses.append("continue down to the water")
+        elif kind in ("amphitheater", "library_terrace"):
+            clauses.append("continue to the top")
         elif kind in UPPER_KINDS:
             clauses.append("continue up onto the " + kind)
         text = clauses[0][0].upper() + clauses[0][1:]
@@ -631,7 +670,7 @@ class ViewTasks:
             categories.append("Dynamic Obstacle")
         if self.lighting["preset"] in ("night", "moonlight"):
             categories.append("Visibility")
-        if not categories:
+        if self.avoids_surfaces(paths[0][2]) or not categories:
             categories.append("Semantic Terrain")
         return {
             "task": text,
@@ -643,6 +682,18 @@ class ViewTasks:
             "category": categories,
             "path_surfaces": sorted(names),
         }
+
+    def avoids_surfaces(self, points, step=0.5):
+        """True when the straight line to the goal crosses surfaces a person should not walk on (grass, a
+        sports field, a bike lane, the road, water) and the path goes around them instead."""
+        (x0, y0, z0), (x1, y1, z1) = points[0], points[-1]
+        length = math.hypot(x1 - x0, y1 - y0)
+        count = max(2, int(length / step))
+        line = [(x0 + (x1 - x0) * k / count, y0 + (y1 - y0) * k / count, z0) for k in range(count + 1)]
+        avoid = {"grass", "sports_field", "bike_lane", "road", "lane_marking", "water", "parking_lot"}
+        on_line = sum(1 for name in self.planner.classes_along(line) if name in avoid) * step
+        on_path = sum(1 for name in self.planner.classes_along(points) if name in avoid) * self.planner.cell
+        return on_line >= 2.0 and on_path < on_line * 0.4
 
     def passes_obstacles(self, points, target_name, radius=0.9):
         """True when the path passes close to an obstacle other than the target."""
@@ -719,7 +770,7 @@ class ViewTasks:
     def context(self, tasks):
         block = self.block
         parts = [VARIANT_CONTEXT.get(block["variant"], "City street") if block else "City street"]
-        if block and any(info["bike_w"] > 0 for info in block["sides"].values()):
+        if block and any(info["bike_w"] > 0 for info in block.get("sides", {}).values()):
             parts.append("Bike lane next to the curb")
         preset = self.lighting["preset"]
         if preset != "day":

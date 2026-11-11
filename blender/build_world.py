@@ -10,6 +10,7 @@ Writes into --out (default blender/world/):
 
   blender --background --python blender/build_world.py -- --seed 0
   blender --background --python blender/build_world.py -- --world oldtown   # World 2, into blender/world_oldtown/
+  blender --background --python blender/build_world.py -- --world campus    # World 3, into blender/world_campus/
 
 Blender only forwards arguments that come after ``--``.
 """
@@ -27,7 +28,9 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from worldlib import layout as lay  # noqa: E402
 from worldlib import navmap  # noqa: E402
+from worldlib import campus_layout  # noqa: E402
 from worldlib import oldtown_layout  # noqa: E402
+from worldlib.campus import CampusBuilder  # noqa: E402
 from worldlib.oldtown import OldTownBuilder  # noqa: E402
 from worldlib.animals import AnimalTemplates  # noqa: E402
 from worldlib.build import WorldBuilder  # noqa: E402
@@ -36,14 +39,15 @@ from worldlib.meshes import get_collection, world_aabb  # noqa: E402
 from worldlib.scene_setup import configure_eevee, make_overview_camera, setup_world  # noqa: E402
 
 GROUND_TOL_M = 0.03
+WORLD_DIRS = {"streets": "world", "oldtown": "world_oldtown", "campus": "world_campus"}
 
 
 def parse_args():
     argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
     parser = argparse.ArgumentParser(description="Build the street world.")
     parser.add_argument("--seed", type=int, default=0)
-    parser.add_argument("--world", choices=("streets", "oldtown"), default="streets",
-                        help="streets = World 1 (the town), oldtown = World 2.")
+    parser.add_argument("--world", choices=("streets", "oldtown", "campus"), default="streets",
+                        help="streets = World 1 (the town), oldtown = World 2, campus = World 3.")
     parser.add_argument("--out", default=None, help="Default: blender/world (streets) or blender/world_oldtown.")
     parser.add_argument("--cell", type=float, default=0.25, help="Navmap cell size in metres.")
     parser.add_argument("--overview", type=lambda v: str(v).lower() in ("true", "1", "yes"), default=True)
@@ -118,19 +122,20 @@ def render_overview(out_dir, extent):
 def main():
     args = parse_args()
     here = os.path.dirname(os.path.abspath(__file__))
-    out_dir = os.path.abspath(args.out or os.path.join(here, "world" if args.world == "streets" else "world_oldtown"))
+    out_dir = os.path.abspath(args.out or os.path.join(here, WORLD_DIRS[args.world]))
     os.makedirs(out_dir, exist_ok=True)
     start = time.perf_counter()
 
     bpy.ops.wm.read_factory_settings(use_empty=True)
-    plan = lay if args.world == "streets" else oldtown_layout
+    plan = {"streets": lay, "oldtown": oldtown_layout, "campus": campus_layout}[args.world]
     layout = plan.make_layout(args.seed)
     print(plan.describe(layout))
 
     animals = AnimalTemplates(os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets"))
     if not animals:
         print("animals_missing run tools/fetch_assets.py to add cats and dogs")
-    builder = (WorldBuilder if args.world == "streets" else OldTownBuilder)(layout, build_materials(), animals)
+    builder = {"streets": WorldBuilder, "oldtown": OldTownBuilder, "campus": CampusBuilder}[args.world](
+        layout, build_materials(), animals)
     builder.build()
     get_collection("Views")
     blend_path = os.path.join(out_dir, "world.blend")

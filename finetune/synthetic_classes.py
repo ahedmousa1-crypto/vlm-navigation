@@ -16,6 +16,7 @@ TERRAIN, VEGETATION, WATER = 29, 30, 31
 BENCH, BIKE_RACK, FIRE_HYDRANT, JUNCTION_BOX, MAILBOX = 33, 34, 38, 39, 40
 STREET_LIGHT, POLE, SIGN_FRONT, TRASH_CAN, BICYCLE, CAR, TRUCK = 44, 45, 50, 51, 52, 55, 61
 PERSON, WHEELED_SLOW = 19, 62
+PARKING, BOAT = 10, 53
 
 OURS_TO_NAVITRACE = {
     0: SKY, 1: ROAD, 2: BIKE_LANE, 3: CROSSWALK, 4: CURB_CUT, 5: CURB, 6: SIDEWALK,
@@ -32,6 +33,8 @@ OURS_TO_NAVITRACE = {
     58: GUARD_RAIL, 59: BARRIER, 60: POLE, 61: TRASH_CAN,
     # World 2 (old town): cobblestone, person, cafe table, market stall, flower pot, scooter
     62: PEDESTRIAN, 63: PERSON, 64: BARRIER, 65: BARRIER, 66: VEGETATION, 67: WHEELED_SLOW,
+    # World 3 (campus): boardwalk, gravel path, boat, running track, sports field, parking lot
+    68: PEDESTRIAN, 69: PEDESTRIAN, 70: BOAT, 71: PEDESTRIAN, 72: TERRAIN, 73: PARKING,
 }
 
 _LOOKUP = np.full(256, SKY, dtype=np.int64)

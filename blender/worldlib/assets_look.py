@@ -17,6 +17,19 @@ MATERIAL_SURFACE = {
     "mat_curb": "curb",
     "mat_plaza": "plaza",
     "mat_terrace": "terrace",
+    # World 3 additions (only the campus renders with them).
+    "mat_deck": "deck",
+    "mat_gravel": "gravel",
+    "mat_pavers": "pavers",
+    "mat_stone": "stone",
+    "mat_track": "track",
+    "mat_facade_brick": "facade_brick",
+    "mat_facade_gray": "facade_gray",
+    "mat_facade_light": "facade_light",
+    "mat_concrete": "concrete",
+    "mat_wall_stone": "wall_stone",
+    "mat_stairs": "stairs",
+    "mat_ramp": "ramp",
     # Grass stays procedural: the leafy_grass photo texture renders dry and yellow at street scale.
 }
 WEATHER = {"Clear": "Clear", "Partly cloudy": "Cloudy", "Cloudy": "Cloudy"}
@@ -114,6 +127,48 @@ class AssetLook:
             sun.data.energy = 4.0 if contrast > 50.0 else 0.6
             sun.data.angle = math.radians(0.6 if contrast > 50.0 else 20.0)
         return asset_id, WEATHER.get(record["weather"], "Clear")
+
+    # ---- HDRI sky inside the lighting presets (World 3) --------------------
+
+    def use_hdri(self, lighting, view_name, weathers):
+        """Swap the preset sky for a photographed HDRI of a matching weather, keeping the preset's lamps and windows.
+
+        The HDRI feeds the input of the preset mix node that the procedural sky normally feeds, so
+        ``use_procedural_sky`` switches back for the next view. Returns (asset_id, weather)."""
+        ids = [k for k in self.hdris if self.manifest["hdris"][k]["weather"] in weathers]
+        asset_id = ids[sum(map(ord, view_name)) % len(ids)]
+        record = self.manifest["hdris"][asset_id]
+        tree = bpy.context.scene.world.node_tree
+        env = tree.nodes.get("hdri_env")
+        if env is None:
+            env = tree.nodes.new("ShaderNodeTexEnvironment")
+            env.name = "hdri_env"
+        env.image = bpy.data.images.load(self.path(record["file"]), check_existing=True)
+        socket = self._mix_color_input(lighting)
+        tree.links.new(env.outputs["Color"], socket)
+        lighting.mix.inputs["Factor"].default_value = 0.0
+        lighting.background.inputs["Strength"].default_value = 1.0
+        elevation, azimuth, contrast = self.sun_from(env.image, asset_id)
+        sun = bpy.data.objects.get("sun")
+        if sun is not None:
+            sun.rotation_euler = (math.pi / 2.0 - elevation, 0.0, azimuth)
+            sharp = contrast > 50.0
+            sun.data.energy = (4.0 if sharp else 0.6) * (0.7 if record["weather"] == "Dusk" else 1.0)
+            sun.data.angle = math.radians(0.6 if sharp else 20.0)
+            sun.data.color = (1.0, 0.72, 0.5) if record["weather"] == "Dusk" else (1.0, 1.0, 1.0)
+        return asset_id, record["weather"]
+
+    def use_procedural_sky(self, lighting):
+        tree = bpy.context.scene.world.node_tree
+        if lighting.sky is not None:
+            tree.links.new(lighting.sky.outputs["Color"], self._mix_color_input(lighting))
+
+    @staticmethod
+    def _mix_color_input(lighting):
+        for socket in lighting.mix.inputs:
+            if socket.name == "A" and socket.type == "RGBA":
+                return socket
+        return lighting.mix.inputs["A"]
 
     def sun_from(self, image, asset_id):
         if asset_id in self.sun_cache:

@@ -43,21 +43,22 @@ def main():
     parser.add_argument("--batch_size", type=int, default=150)
     parser.add_argument("--blender", default=os.environ.get("BLENDER_EXE", DEFAULT_BLENDER))
     parser.add_argument("--max_batches", type=int, default=100)
-    parser.add_argument("--world", choices=("streets", "oldtown"), default="streets")
+    parser.add_argument("--world", choices=("streets", "oldtown", "campus"), default="streets")
     parser.add_argument("--shard", default=None, help="k/n for side-by-side renderers (World 2).")
     parser.add_argument("--max_tasks", type=int, default=2, help="Tasks (samples) per view.")
     parser.add_argument("--upload_tries", type=int, default=5, help="Upload attempts before giving up.")
     parser.add_argument("--log", default=None)
     args = parser.parse_args()
-    oldtown = args.world == "oldtown"
-    world = os.path.join(REPO_ROOT, "blender", "world_oldtown" if oldtown else "world", "world.blend")
+    oldtown = args.world in ("oldtown", "campus")   # worlds with their own dataset folders and shard prefixes
+    folder = {"streets": "world", "oldtown": "world_oldtown", "campus": "world_campus"}[args.world]
+    world = os.path.join(REPO_ROOT, "blender", folder, "world.blend")
     dataset = "dataset"
     if oldtown:
-        dataset = "dataset_oldtown_" + (args.shard.split("/")[0] if args.shard else "0")
+        dataset = f"dataset_{args.world}_" + (args.shard.split("/")[0] if args.shard else "0")
     os.makedirs(os.path.join(REPO_ROOT, dataset), exist_ok=True)
     args.log = args.log or os.path.join(REPO_ROOT, dataset, "render_batches.log")
     shard_args = ["--shard", args.shard] if args.shard else []
-    prefix = "w2" if oldtown else "p2"
+    prefix = {"streets": "p2", "oldtown": "w2", "campus": "w3"}[args.world]
 
     for index in range(args.max_batches):
         before, views_before = count_records(dataset)
@@ -70,7 +71,9 @@ def main():
               f"({time.perf_counter() - start:.0f}s)", flush=True)
         if new_views == 0:
             break
-        if run([sys.executable, "tools/build_dataset.py", "--dataset", dataset, "--pending_only", "--max_previews", "0"], args.log):
+        fx = ["--photo_fx"] if args.world == "campus" else []
+        if run([sys.executable, "tools/build_dataset.py", "--dataset", dataset, "--pending_only", "--max_previews", "0"] + fx,
+               args.log):
             print("build_dataset failed; see log", flush=True)
             return 1
         tag = f"b{int(time.time())}" + (f"s{args.shard.split('/')[0]}" if args.shard else "")

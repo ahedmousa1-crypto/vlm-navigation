@@ -14,6 +14,7 @@ Outputs under --out:
 
 import argparse
 import csv
+import hashlib
 import json
 import math
 import os
@@ -48,6 +49,15 @@ METADATA = {
     "urban_rural": "Urban",
     "weather_conditions": "Clear",
 }
+
+
+HDRI_SHARE = 0.6
+HDRI_WEATHERS = {"day": ("Clear", "Partly cloudy"), "overcast": ("Cloudy",), "dusk": ("Dusk",)}
+HDRI_EXPOSURE = {"day": -0.14, "overcast": 0.0, "dusk": 0.3}
+
+
+def hash01(text):
+    return int(hashlib.sha1(text.encode()).hexdigest()[:8], 16) / 0xFFFFFFFF
 
 
 def parse_args():
@@ -174,10 +184,13 @@ def main():
     vis = VisTree()
     asset_look = None
     lighting = None
-    if args.look == "assets":
+    # World 3 always renders with photo textures, and swaps in a photographed sky for part of the
+    # day, overcast and dusk views (the rest keep the procedural sky), so the dataset mixes both looks.
+    campus = layout.get("world") == "campus"
+    if args.look == "assets" or campus:
         asset_look = AssetLook(os.path.join(HERE, "assets"))
         asset_look.apply_textures()
-    else:
+    if args.look != "assets" or campus:
         lighting = Lighting(scene)
     samples_path = os.path.join(out_dir, "samples.jsonl")
     records = load_records(samples_path)
@@ -205,10 +218,21 @@ def main():
             scene.camera = cam
             look = {"name": args.look, "hdri": None, "weather": "Clear", "lighting": "Daylight", "preset": "day"}
             light_info = None
+            hdri_exposure = None
             if lighting is not None:
                 loc = cam.matrix_world.translation
                 light_info = lighting.apply(preset_for(cam.name, args.lighting), near=(loc.x, loc.y))
                 look.update(weather=light_info["weather"], lighting=light_info["lighting"], preset=light_info["preset"])
+                if campus:
+                    look["name"] = "textured"
+                    weathers = HDRI_WEATHERS.get(light_info["preset"])
+                    if weathers and hash01(cam.name + "/sky") < HDRI_SHARE:
+                        look["hdri"], weather = asset_look.use_hdri(lighting, cam.name, weathers)
+                        look["name"] = "photo_sky"
+                        look["weather"] = {"Partly cloudy": "Cloudy", "Dusk": "Clear"}.get(weather, weather)
+                        hdri_exposure = HDRI_EXPOSURE[light_info["preset"]]
+                    else:
+                        asset_look.use_procedural_sky(lighting)
             elif asset_look is not None:
                 look["hdri"], look["weather"] = asset_look.apply_sky(cam.name)
             bpy.context.view_layer.update()
@@ -226,6 +250,8 @@ def main():
             configure_eevee(scene, samples=args.samples)
             if light_info is not None:
                 scene.view_settings.exposure = PRESETS[light_info["preset"]]["exposure"]
+            if hdri_exposure is not None:
+                scene.view_settings.exposure = hdri_exposure
             render_to(scene, os.path.join(out_dir, "images", cam.name + ".png"))
             configure_mask_render(scene)
             render_to(scene, os.path.join(out_dir, "work", "masks_rgb", cam.name + ".png"))

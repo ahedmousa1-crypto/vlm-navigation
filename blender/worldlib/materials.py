@@ -75,7 +75,7 @@ def build_materials():
     """Every material the world uses, keyed by short name."""
     return {
         # Legacy street set (same parameters as legacy/blender/gen_scene.py).
-        "grass": layered_material("mat_grass", (0.06, 0.18, 0.04), (0.42, 0.55, 0.10), 0.55, 8.0, 0.82, 1.0, 0.7),
+        "grass": layered_material("mat_grass", (0.04, 0.11, 0.025), (0.26, 0.36, 0.09), 0.55, 8.0, 0.82, 1.0, 0.7),
         "sidewalk": layered_material("mat_sidewalk", (0.28, 0.27, 0.25), (0.70, 0.68, 0.64), 1.1, 16.0, 0.62, 0.95, 0.55),
         "curb": layered_material("mat_curb", (0.25, 0.24, 0.22), (0.55, 0.53, 0.50), 1.4, 18.0, 0.7, 0.96, 0.4),
         "bike_lane": layered_material("mat_bike_lane", (0.06, 0.16, 0.10), (0.22, 0.40, 0.22), 1.6, 14.0, 0.7, 0.95, 0.35),
@@ -94,6 +94,11 @@ def build_materials():
         "terrace": layered_material("mat_terrace", (0.33, 0.31, 0.28), (0.68, 0.65, 0.60), 1.0, 14.0, 0.62, 0.94, 0.5),
         "soil": layered_material("mat_soil", (0.10, 0.07, 0.04), (0.30, 0.22, 0.14), 1.5, 12.0, 0.85, 1.0, 0.6),
         "shrub": layered_material("mat_shrub", (0.04, 0.15, 0.04), (0.20, 0.40, 0.12), 1.2, 9.0, 0.8, 0.95, 0.5),
+        # World 3 (campus).
+        "deck": layered_material("mat_deck", (0.20, 0.12, 0.07), (0.50, 0.36, 0.22), 1.8, 5.0, 0.55, 0.85, 0.35),
+        "gravel": layered_material("mat_gravel", (0.32, 0.29, 0.24), (0.66, 0.61, 0.52), 2.5, 30.0, 0.8, 1.0, 0.8),
+        "track": layered_material("mat_track", (0.38, 0.10, 0.07), (0.62, 0.22, 0.15), 1.5, 20.0, 0.75, 0.95, 0.4),
+        "field": layered_material("mat_field", (0.05, 0.22, 0.05), (0.25, 0.50, 0.12), 0.8, 10.0, 0.8, 1.0, 0.5),
         "facade_light": layered_material("mat_facade_light", (0.55, 0.50, 0.42), (0.80, 0.76, 0.68), 0.6, 10.0, 0.75, 0.95, 0.25),
         "facade_brick": layered_material("mat_facade_brick", (0.30, 0.12, 0.08), (0.55, 0.28, 0.20), 0.8, 14.0, 0.8, 0.97, 0.35),
         "facade_gray": layered_material("mat_facade_gray", (0.30, 0.31, 0.32), (0.55, 0.56, 0.57), 0.7, 12.0, 0.7, 0.93, 0.25),

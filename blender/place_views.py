@@ -30,10 +30,11 @@ from worldlib.classes import CLASS_ID  # noqa: E402
 from worldlib.meshes import get_collection  # noqa: E402
 from worldlib.navmap import VisTree  # noqa: E402
 from worldlib.planner import HumanPlanner  # noqa: E402
-from worldlib.scene_setup import make_view_camera  # noqa: E402
+from worldlib.scene_setup import look_rotation, make_view_camera  # noqa: E402
 from worldlib.tasks import ViewTasks  # noqa: E402
 
-STAND_CLASSES = ("sidewalk", "plaza", "park_path", "skate_area", "cobblestone")
+STAND_CLASSES = ("sidewalk", "plaza", "park_path", "skate_area", "cobblestone", "boardwalk", "gravel_path",
+                 "running_track", "terrace")
 CLEAR_AHEAD_M = 7.0
 HEADING_JITTER_DEG = 14.0
 
@@ -102,6 +103,51 @@ def street_heading(layout, x, y, rng):
     return best[1] + (math.pi if rng.random() < 0.5 else 0.0)
 
 
+def vary_camera(cam, heading, rng):
+    """World 3: hand-held phone variety: lens 24-35 mm, eye height 1.4-1.75 m, pitch and a slight roll."""
+    from mathutils import Quaternion
+    ground = cam["ground_z"]
+    cam.data.lens = rng.uniform(24.0, 35.0)
+    cam.location.z = ground + rng.uniform(1.4, 1.75)
+    rot = look_rotation(cam.location, heading, look_height=rng.uniform(0.2, 1.6), look_dist=rng.uniform(12.0, 18.0),
+                        ground_z=ground).to_quaternion()
+    roll = Quaternion((0.0, 0.0, 1.0), math.radians(rng.uniform(-2.5, 2.5)))
+    cam.rotation_euler = (rot @ roll).to_euler()
+    cam["lens_mm"] = cam.data.lens
+
+
+def campus_heading(layout, face, x, y, cls, rng):
+    """World 3: along the promenade, the pier and the paths, across plazas, along the walkways."""
+    qy = layout["quay_y"]
+    if y < qy - 0.5:   # pier or a lower quay ledge
+        pier = layout["pier"]
+        along = math.pi / 2 if abs(x - pier["x"]) < pier["width"] else 0.0
+        return along + (math.pi if rng.random() < 0.5 else 0.0)
+    if y < qy + 14.0:  # the promenade
+        roll = rng.random()
+        if roll < 0.72:
+            return rng.choice((0.0, math.pi))
+        if roll < 0.88:
+            return -math.pi / 2 + math.radians(rng.uniform(-45, 45))   # out over the water
+        return math.pi / 2 + math.radians(rng.uniform(-45, 45))
+    from worldlib.oldtown_layout import point_in_poly
+    if point_in_poly((x, y), face["inset"]):
+        paths = face.get("paths") or []
+        best = None
+        for (x0, y0), (x1, y1) in paths:
+            dx, dy = x1 - x0, y1 - y0
+            t = max(0.0, min(1.0, ((x - x0) * dx + (y - y0) * dy) / ((dx * dx + dy * dy) or 1e-9)))
+            d = math.hypot(x - (x0 + t * dx), y - (y0 + t * dy))
+            if best is None or d < best[0]:
+                best = (d, math.atan2(dy, dx))
+        if best is not None and best[0] < 2.5 and rng.random() < 0.8:
+            return best[1] + (math.pi if rng.random() < 0.5 else 0.0)
+        cx = sum(p[0] for p in face["inset"]) / 4
+        cy = sum(p[1] for p in face["inset"]) / 4
+        return math.atan2(cy - y, cx - x) + math.radians(rng.uniform(-75, 75))
+    return street_heading(layout, x, y, rng)
+
+
 def stair_spots(rng):
     """Old town: (x, y, heading) spots 6-12 m from stairs and ramps, facing them, from above and below."""
     spots = []
@@ -141,7 +187,7 @@ def feature_spots(layout, rng):
             a, d = rng.uniform(0, 2 * math.pi), rng.uniform(7.0, 11.0)
             x, y = gx + math.cos(a) * d, gy + math.sin(a) * d
             spots.append((x, y, math.atan2(gy - y, gx - x)))
-    if layout.get("world") == "oldtown":
+    if layout.get("world") in ("oldtown", "campus"):
         spots += stair_spots(rng)
     rng.shuffle(spots)
     return spots
@@ -166,7 +212,9 @@ def main():
     scene = bpy.context.scene
     vis = VisTree()
     oldtown = layout.get("world") == "oldtown"
-    prefix = "ot_view" if oldtown else "view"  # World 2 names keep sample ids and image names unique
+    campus = layout.get("world") == "campus"
+    # World 2 and 3 names keep sample ids and image names unique.
+    prefix = "ot_view" if oldtown else ("cw_view" if campus else "view")
 
     def try_camera(x, y, heading, spacing, allowed=None):
         allowed = allowed or stand_ids
@@ -182,7 +230,7 @@ def main():
                 return False
         if not clear_ahead(planner, x, y, heading):
             return False
-        if layout.get("world") == "oldtown":
+        if layout.get("world") in ("oldtown", "campus"):
             nx0, nx1, ny0, ny1 = layout["nav_extent"]
             ax, ay = x + math.cos(heading) * 12.0, y + math.sin(heading) * 12.0
             if not (nx0 <= ax <= nx1 and ny0 <= ay <= ny1):
@@ -190,6 +238,8 @@ def main():
         state["tried"] += 1
         name = f"{prefix}_{state['next']:04d}"
         cam = make_view_camera(name, x, y, planner.height_at(x, y), heading)
+        if campus:
+            vary_camera(cam, heading, random.Random(name + "/camera"))
         cam["block"] = block["id"]
         cam["variant"] = block["variant"]
         bpy.context.view_layer.update()
@@ -226,7 +276,9 @@ def main():
         block, side = lay.block_side_at(layout, x, y)
         if block is None or (args.new_only and not block.get("new")):
             continue
-        if oldtown:
+        if campus:
+            heading = campus_heading(layout, block, x, y, int(planner.cls[rows[index], cols[index]]), rng)
+        elif oldtown:
             cls = int(planner.cls[rows[index], cols[index]])
             if cls == CLASS_ID["plaza"]:
                 # In a square: look across it, roughly toward its middle.

@@ -12,6 +12,7 @@ __pycache__/
 blender/world/*
 !blender/world/.gitkeep
 blender/world_oldtown/
+blender/world_campus/
 
 # Downloaded CC0 assets (re-fetch via tools/fetch_assets.py); keep license list
 blender/assets/*
@@ -21,6 +22,7 @@ blender/assets/*
 # Rendered dataset (regenerable; published on Hugging Face)
 dataset/*
 dataset_oldtown_*/
+dataset_campus_*/
 !dataset/images/
 dataset/images/*
 !dataset/images/.gitkeep
