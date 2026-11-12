@@ -54,7 +54,7 @@ image = (
     .add_local_dir(ROOT / "tools", "/repo/tools", ignore=["__pycache__"])
     .add_local_file(ROOT / "trace_format.py", "/repo/trace_format.py")
 )
-hf_secret = modal.Secret.from_name("huggingface-secret")
+hf_secret = modal.Secret.from_name("vln-hf")   # HF write token (copied from the laptop login)
 
 
 def _records(folder):
@@ -264,7 +264,7 @@ def main(step: str = "test"):
         call = orchestrate.spawn(pending)
         print(f"orchestrator running on Modal: {call.object_id}")
     elif step == "finish":
-        print(finish.remote())
+        print(f"finish running on Modal: {finish.spawn().object_id}")
     elif step == "status":
         print(status.remote())
     else:
