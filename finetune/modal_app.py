@@ -11,6 +11,10 @@ Steps (run from the repo root; results live on the Modal volume "vln-finetune"):
   modal run finetune/modal_app.py --step predict --run lora-v1 --adapter lora-v1
   modal run finetune/modal_app.py --step score --run lora-v1
 
+  # lora-v3: continue lora-v2 on World 3 + 1,500 replayed World 1-2 samples, then predict + score,
+  # all on Modal (starts when the render orchestrator call finishes):
+  modal run --detach finetune/modal_app.py --step all --run lora-v3 --init-adapter lora-v2 --new-world campus --replay 1500 --after <fc-id>
+
   modal volume get vln-finetune scores/ ./finetune/results/          # copy scores home
 
 Training data: ahd03/vln-synthetic-streets (train split). Evaluation: leggedrobotics/navitrace
@@ -255,18 +259,32 @@ def score(run, workers=8, data="navitrace"):
 
 
 @app.function(image=image, volumes={"/vol": volume}, gpu=GPU, timeout=6 * 3600)
-def train(run, epochs=2, lr=1e-4, rank=16, batch_size=4, grad_accum=4, limit=0):
-    """LoRA on the language model (vision encoder frozen); adapter saved to /vol/adapters/<run>."""
+def train(run, epochs=2, lr=1e-4, rank=16, batch_size=4, grad_accum=4, limit=0, init_adapter="", new_world="",
+          replay=0):
+    """LoRA on the language model (vision encoder frozen); adapter saved to /vol/adapters/<run>.
+    Continued training: --init_adapter <run> starts from that adapter, --new_world <world> trains on that
+    world's samples plus --replay random samples of the other worlds (so the earlier worlds are not forgotten)."""
     _setup()
+    import random
+
     import torch
     from datasets import load_dataset
-    from peft import LoraConfig, get_peft_model
+    from peft import LoraConfig, PeftModel, get_peft_model
     from transformers import Trainer, TrainingArguments
     from prompts import messages, trace_to_answer
 
     processor, model = _load_model()
     processor.tokenizer.padding_side = "right"
     data = load_dataset(TRAIN_DATA, split="train")
+    mix = None
+    if new_world:
+        worlds = [json.loads(s or "{}").get("world", "streets") for s in data["synthetic"]]
+        new = [i for i, w in enumerate(worlds) if w == new_world]
+        old = [i for i, w in enumerate(worlds) if w != new_world]
+        old = random.Random(0).sample(old, min(replay, len(old)))
+        data = data.select(sorted(new + old))
+        mix = {"new_world": new_world, "new": len(new), "replay": len(old)}
+        print(f"train mix {mix}", flush=True)
     if limit:
         data = data.select(range(limit))
     marker = _assistant_start(processor.tokenizer)
@@ -296,7 +314,10 @@ def train(run, epochs=2, lr=1e-4, rank=16, batch_size=4, grad_accum=4, limit=0):
         r=rank, lora_alpha=2 * rank, lora_dropout=0.05, task_type="CAUSAL_LM",
         target_modules=r".*language_model.*\.(q_proj|k_proj|v_proj|o_proj|gate_proj|up_proj|down_proj)",
     )
-    model = get_peft_model(model, lora)
+    if init_adapter:
+        model = PeftModel.from_pretrained(model, f"/vol/adapters/{init_adapter}", is_trainable=True)
+    else:
+        model = get_peft_model(model, lora)
     model.print_trainable_parameters()
     args = TrainingArguments(
         output_dir=f"/vol/runs/{run}", per_device_train_batch_size=batch_size, gradient_accumulation_steps=grad_accum,
@@ -308,15 +329,35 @@ def train(run, epochs=2, lr=1e-4, rank=16, batch_size=4, grad_accum=4, limit=0):
     model.save_pretrained(f"/vol/adapters/{run}")
     with open(f"/vol/adapters/{run}/train_log.json", "w", encoding="utf-8") as handle:
         json.dump({"args": {"epochs": epochs, "lr": lr, "rank": rank, "batch": batch_size * grad_accum,
-                            "samples": len(data), "max_side": MAX_SIDE, "model": MODEL_ID},
+                            "samples": len(data), "max_side": MAX_SIDE, "model": MODEL_ID,
+                            "init_adapter": init_adapter, "mix": mix},
                    "log": trainer.state.log_history}, handle, indent=1)
     volume.commit()
     return {"run": run, "samples": len(data), "final_loss": trainer.state.log_history[-1]}
 
 
+@app.function(image=image, volumes={"/vol": volume}, timeout=12 * 3600)
+def pipeline(run, epochs=2, init_adapter="", new_world="", replay=0):
+    """Train, then predict and score on NaviTrace validation; runs on Modal so `modal run --detach` survives the PC."""
+    result = {"train": train.remote(run, epochs=epochs, init_adapter=init_adapter, new_world=new_world, replay=replay)}
+    print(result, flush=True)
+    result["predict"] = predict.remote(run, adapter=run)
+    result["score"] = {k: v for k, v in score.remote(run).items() if k != "per_sample"}
+    print(json.dumps(result, indent=1, default=str), flush=True)
+    return result
+
+
+@app.function(image=image, volumes={"/vol": volume}, timeout=24 * 3600)
+def pipeline_after(call_id, run, epochs=2, init_adapter="", new_world="", replay=0):
+    """Wait for another Modal call (e.g. the World 3 render + upload orchestrator) to finish, then run pipeline."""
+    print(f"waiting for {call_id}", flush=True)
+    print(modal.FunctionCall.from_id(call_id).get(), flush=True)
+    return pipeline.remote(run, epochs=epochs, init_adapter=init_adapter, new_world=new_world, replay=replay)
+
+
 @app.local_entrypoint()
 def main(step: str = "check", run: str = "baseline", adapter: str = "", epochs: int = 2, limit: int = 0,
-         data: str = "navitrace"):
+         data: str = "navitrace", init_adapter: str = "", new_world: str = "", replay: int = 0, after: str = ""):
     if step == "prepare":
         print(json.dumps(prepare.remote(), indent=1))
     elif step == "check":
@@ -326,6 +367,12 @@ def main(step: str = "check", run: str = "baseline", adapter: str = "", epochs: 
     elif step == "score":
         print(json.dumps(score.remote(run, data=data), indent=1))
     elif step == "train":
-        print(train.remote(run, epochs=epochs, limit=limit))
+        print(train.remote(run, epochs=epochs, limit=limit, init_adapter=init_adapter, new_world=new_world,
+                           replay=replay))
+    elif step == "all":   # detached-friendly: train, predict, score in one Modal call chain
+        if after:   # start only when that Modal call (the render orchestrator) has finished
+            print(pipeline_after.spawn(after, run, epochs, init_adapter, new_world, replay).object_id)
+        else:
+            print(pipeline.spawn(run, epochs, init_adapter, new_world, replay).object_id)
     else:
         raise SystemExit(f"unknown step {step}")
