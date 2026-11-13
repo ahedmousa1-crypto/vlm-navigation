@@ -1,4 +1,4 @@
-"""Tracely demo API on Modal: one POST endpoint that takes a photo and a task and returns the path.
+"""Tracely demo API on Modal: POST a photo and a task, then poll GET /result?id=... for the path.
 
   modal deploy demo/modal_demo.py          # prints the endpoint URL; put it in docs/index.html
 
@@ -49,7 +49,7 @@ def _parse(text):
     return [[min(max(x, 0.0), 1.0), min(max(y, 0.0), 1.0)] for x, y in pts]
 
 
-@app.cls(image=image, gpu="L4", volumes={"/vol": volume}, scaledown_window=300, timeout=600)
+@app.cls(image=image, gpu=["L4", "A10G", "L40S"], volumes={"/vol": volume}, scaledown_window=300, timeout=900)
 class Tracely:
     @modal.enter()
     def load(self):
@@ -88,9 +88,25 @@ def trace():
     from fastapi.middleware.cors import CORSMiddleware
 
     api = FastAPI()
-    api.add_middleware(CORSMiddleware, allow_origins=ALLOWED_ORIGINS, allow_methods=["POST"], allow_headers=["*"])
+    api.add_middleware(CORSMiddleware, allow_origins=ALLOWED_ORIGINS, allow_methods=["GET", "POST"], allow_headers=["*"])
     api.post("/")(_trace)
+    api.get("/result")(_result)
     return api
+
+
+def _result(id: str):
+    """Poll a started request: 202 while the GPU is still working, else the result."""
+    from fastapi.responses import JSONResponse
+
+    try:
+        call = modal.FunctionCall.from_id(id)
+        result = call.get(timeout=0)
+    except TimeoutError:
+        return JSONResponse({"status": "working"}, status_code=202)
+    except Exception as exc:  # expired id, failed call
+        return JSONResponse({"error": f"The request failed: {type(exc).__name__}"}, status_code=500)
+    result["remaining_today"] = DAILY_LIMIT - usage.get(time.strftime("%Y-%m-%d"), 0)
+    return JSONResponse(result)
 
 
 def _trace(request: dict):
@@ -111,8 +127,5 @@ def _trace(request: dict):
     except Exception:
         return JSONResponse({"error": "Could not read the image."}, status_code=400)
     usage[day] = used + 1
-    started = time.time()
-    result = Tracely().predict.remote(image_bytes, task)
-    result["seconds"] = round(time.time() - started, 1)
-    result["remaining_today"] = DAILY_LIMIT - used - 1
-    return JSONResponse(result)
+    call = Tracely().predict.spawn(image_bytes, task)   # the page polls /result?id=... (a cold GPU takes minutes)
+    return JSONResponse({"id": call.object_id, "remaining_today": DAILY_LIMIT - used - 1}, status_code=202)

@@ -2,152 +2,687 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Tracely</title>
-<meta name="description" content="Tracely: a vision-language model fine-tuned on synthetic street scenes to draw where a person would walk. Dataset, model, results and a live demo.">
+<meta name="description" content="Tracely: a vision-language model that draws where a person would walk, trained only on synthetic street scenes. Dataset, model, results and a live demo.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='30' fill='%230071e3'/%3E%3Cpath d='M18 46 L30 30 L42 36 L48 20' stroke='white' stroke-width='6' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
 <style>
-  :root { --bg: #ffffff; --fg: #1b1b1f; --muted: #5c5f66; --line: #e3e5e8; --accent: #1f4e9c; --accent-soft: #e8eefb; --card: #f7f8fa; }
-  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg: #121317; --fg: #e9eaee; --muted: #a2a6ad; --line: #2b2e34; --accent: #7fa6ff; --accent-soft: #1d2740; --card: #1a1c22; } }
-  :root[data-theme="dark"] { --bg: #121317; --fg: #e9eaee; --muted: #a2a6ad; --line: #2b2e34; --accent: #7fa6ff; --accent-soft: #1d2740; --card: #1a1c22; }
-  * { box-sizing: border-box; }
-  body { margin: 0; background: var(--bg); color: var(--fg); font: 17px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
-  main { max-width: 900px; margin: 0 auto; padding: 48px 16px 80px; }
-  h1 { font-size: 44px; margin: 0 0 6px; letter-spacing: -0.5px; }
-  .tag { color: var(--muted); font-size: 20px; margin: 0 0 18px; }
-  h2 { font-size: 26px; margin: 48px 0 12px; }
-  p { margin: 0 0 14px; }
-  a { color: var(--accent); }
-  .links a { display: inline-block; margin: 4px 10px 4px 0; padding: 8px 14px; border: 1px solid var(--line); border-radius: 8px; text-decoration: none; background: var(--card); }
-  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin: 22px 0; }
-  .stat { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 14px; }
-  .stat b { display: block; font-size: 28px; color: var(--accent); }
-  .stat span { color: var(--muted); font-size: 14px; }
-  table { border-collapse: collapse; width: 100%; margin: 12px 0 18px; font-size: 16px; }
-  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); }
-  td.n, th.n { text-align: right; font-variant-numeric: tabular-nums; }
-  tr.ours td { background: var(--accent-soft); font-weight: 600; }
-  figure { margin: 18px 0; }
-  figure img { width: 100%; height: auto; border-radius: 10px; border: 1px solid var(--line); }
-  figcaption { color: var(--muted); font-size: 14px; margin-top: 6px; }
-  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
-  @media (max-width: 640px) { .grid2 { grid-template-columns: 1fr; } h1 { font-size: 34px; } }
-  .demo { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 18px; }
-  .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-bottom: 10px; }
-  input[type=text] { flex: 1 1 260px; padding: 10px 12px; font: inherit; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--fg); }
-  button { padding: 10px 18px; font: inherit; font-weight: 600; border: 0; border-radius: 8px; background: var(--accent); color: #fff; cursor: pointer; }
-  button:disabled { opacity: 0.55; cursor: default; }
-  .status { color: var(--muted); font-size: 15px; min-height: 22px; }
-  canvas { width: 100%; height: auto; border-radius: 10px; border: 1px solid var(--line); display: none; margin-top: 10px; background: #000; }
-  .small { color: var(--muted); font-size: 14px; }
-  footer { margin-top: 60px; color: var(--muted); font-size: 14px; border-top: 1px solid var(--line); padding-top: 16px; }
+/* Layout: Apple-style product page. Sticky glass nav, centered hero with a featured scene,
+   alternating light/tinted bands, and a filterable gallery that opens a large scene viewer. */
+:root {
+  --bg: #ffffff;
+  --band: #f5f5f7;
+  --card: #ffffff;
+  --fg: #1d1d1f;
+  --muted: #6e6e73;
+  --line: #d2d2d7;
+  --accent: #0071e3;
+  --accent-ink: #ffffff;
+  --path: #ff3b30;
+  --path-2: #0a84ff;
+  --chip: #e8e8ed;
+  --glass: rgba(255, 255, 255, 0.72);
+  --shadow: 0 2px 6px rgba(0, 0, 0, 0.04), 0 12px 32px rgba(0, 0, 0, 0.08);
+  --display: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --text: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #000000; --band: #161617; --card: #1d1d1f; --fg: #f5f5f7; --muted: #a1a1a6; --line: #424245;
+    --accent: #2997ff; --accent-ink: #000000; --path: #ff453a; --path-2: #64d2ff; --chip: #2c2c2e;
+    --glass: rgba(22, 22, 23, 0.72); --shadow: 0 2px 6px rgba(0, 0, 0, 0.4), 0 12px 32px rgba(0, 0, 0, 0.5);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #000000; --band: #161617; --card: #1d1d1f; --fg: #f5f5f7; --muted: #a1a1a6; --line: #424245;
+  --accent: #2997ff; --accent-ink: #000000; --path: #ff453a; --path-2: #64d2ff; --chip: #2c2c2e;
+  --glass: rgba(22, 22, 23, 0.72); --shadow: 0 2px 6px rgba(0, 0, 0, 0.4), 0 12px 32px rgba(0, 0, 0, 0.5);
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  background: var(--bg); color: var(--fg); font-family: var(--text); font-size: 17px; line-height: 1.47;
+  -webkit-font-smoothing: antialiased; letter-spacing: -0.01em;
+}
+body::before {
+  content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 30; background: var(--glass);
+}
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 6px; }
+.wrap {
+  max-width: 1080px; margin: 0 auto;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.band { background: var(--band); }
+section { padding-block: 88px; }
+h1, h2, h3 { font-family: var(--display); text-wrap: balance; margin: 0; letter-spacing: -0.025em; }
+p { margin: 0; }
+
+/* Nav */
+nav.top {
+  position: sticky; top: env(safe-area-inset-top, 0px); z-index: 20; background: var(--glass);
+  backdrop-filter: saturate(180%) blur(20px); -webkit-backdrop-filter: saturate(180%) blur(20px);
+  border-bottom: 1px solid color-mix(in srgb, var(--line) 60%, transparent);
+}
+nav.top .wrap { display: flex; align-items: center; justify-content: space-between; gap: 16px; height: 48px; }
+nav.top .brand { font-family: var(--display); font-weight: 600; font-size: 17px; color: var(--fg); white-space: nowrap; }
+nav.top .links { display: flex; gap: 24px; font-size: 13px; }
+nav.top .links a { color: var(--fg); opacity: 0.8; }
+nav.top .links a:hover { opacity: 1; text-decoration: none; }
+@media (max-width: 640px) { nav.top .links { gap: 14px; } nav.top .links .opt { display: none; } }
+
+/* Hero */
+.hero { padding-block: 72px 56px; text-align: center; }
+.eyebrow { font-size: 17px; font-weight: 600; color: var(--accent); margin-bottom: 10px; }
+.hero h1 { font-size: clamp(40px, 7vw, 72px); line-height: 1.05; font-weight: 700; }
+.hero .sub { font-size: clamp(19px, 2.4vw, 24px); color: var(--muted); max-width: 640px; margin: 18px auto 0; line-height: 1.35; }
+.ctas { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; margin-top: 28px; }
+.btn {
+  display: inline-flex; align-items: center; gap: 6px; padding: 11px 22px; border-radius: 980px; font-size: 17px;
+  border: 1px solid transparent; cursor: pointer; font-family: var(--text);
+}
+.btn.primary { background: var(--accent); color: var(--accent-ink); }
+.btn.primary:hover { text-decoration: none; filter: brightness(1.08); }
+.btn.ghost { color: var(--accent); border-color: var(--accent); background: transparent; }
+.btn.ghost:hover { text-decoration: none; background: color-mix(in srgb, var(--accent) 8%, transparent); }
+.feature {
+  margin: 48px auto 0; max-width: 880px; border-radius: 28px; overflow: hidden; box-shadow: var(--shadow);
+  position: relative; background: var(--card);
+}
+.feature-cap {
+  display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: baseline; justify-content: space-between;
+  padding: 16px 22px; text-align: left; border-top: 1px solid var(--line);
+}
+.feature-cap .task { font-family: var(--display); font-size: 19px; font-weight: 600; }
+.feature-cap .meta { color: var(--muted); font-size: 14px; }
+
+/* Scene (image + path overlay) */
+.scene { position: relative; aspect-ratio: 1365 / 1024; max-width: 100%; background: var(--chip); }
+.scene img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; }
+.scene svg { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.scene .route { fill: none; stroke-linecap: round; stroke-linejoin: round; }
+.scene .route.halo { stroke: rgba(0, 0, 0, 0.35); }
+.scene .dot { stroke: #ffffff; }
+.scene.hide-path svg { opacity: 0; }
+.scene svg { transition: opacity 0.25s ease; }
+.draw .route.main { stroke-dasharray: var(--len); stroke-dashoffset: 0; animation: draw 1.6s ease-out both; }
+@keyframes draw { from { stroke-dashoffset: var(--len); } to { stroke-dashoffset: 0; } }
+@media (prefers-reduced-motion: reduce) { .draw .route.main { animation: none; } html { scroll-behavior: auto; } }
+
+/* Stats */
+.stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 24px; text-align: center; }
+.stat .num { font-family: var(--display); font-size: clamp(36px, 5vw, 56px); font-weight: 700; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; }
+.stat .lbl { color: var(--muted); font-size: 15px; }
+@media (max-width: 720px) { .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); row-gap: 32px; } }
+
+/* Section headers */
+.head { text-align: center; max-width: 720px; margin: 0 auto 48px; }
+.head h2 { font-size: clamp(32px, 5vw, 48px); line-height: 1.08; font-weight: 700; }
+.head p { color: var(--muted); font-size: 19px; margin-top: 14px; }
+
+/* Overview */
+.two { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; }
+.panel { background: var(--card); border-radius: 22px; padding: 32px; min-width: 0; }
+.band .panel { background: var(--card); }
+.panel h3 { font-size: 24px; margin-bottom: 12px; }
+.panel p { color: var(--muted); }
+.panel p strong { color: var(--fg); font-weight: 600; }
+@media (max-width: 720px) { .two { grid-template-columns: 1fr; } }
+
+/* Steps (a real sequence) */
+.steps { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 20px; counter-reset: step; }
+.step { padding: 24px; border-radius: 20px; background: var(--band); min-width: 0; }
+.step .n { font-family: var(--display); font-size: 15px; font-weight: 600; color: var(--accent); margin-bottom: 10px; }
+.step h3 { font-size: 21px; margin-bottom: 8px; }
+.step p { color: var(--muted); font-size: 15px; }
+@media (max-width: 900px) { .steps { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 520px) { .steps { grid-template-columns: 1fr; } }
+
+/* Gallery */
+.filters { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; margin-bottom: 32px; }
+.chip {
+  border: 0; background: var(--chip); color: var(--fg); padding: 8px 16px; border-radius: 980px; font-size: 14px;
+  cursor: pointer; font-family: var(--text);
+}
+.chip[aria-pressed="true"] { background: var(--fg); color: var(--bg); }
+.grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; }
+@media (max-width: 900px) { .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 560px) { .grid { grid-template-columns: 1fr; } }
+.card {
+  display: flex; flex-direction: column; background: var(--card); border-radius: 18px; overflow: hidden; border: 0;
+  padding: 0; text-align: left; cursor: pointer; color: var(--fg); font: inherit; box-shadow: var(--shadow);
+  transition: transform 0.2s ease;
+}
+.card:hover { transform: translateY(-3px); }
+@media (prefers-reduced-motion: reduce) { .card { transition: none; } .card:hover { transform: none; } }
+.card .body { padding: 14px 16px 16px; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.card .task { font-weight: 600; font-size: 16px; line-height: 1.35; }
+.tags { display: flex; gap: 6px; flex-wrap: wrap; }
+.tag { font-size: 12px; padding: 3px 9px; border-radius: 980px; background: var(--chip); color: var(--muted); white-space: nowrap; }
+.tag.type { color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); }
+.empty { text-align: center; color: var(--muted); padding: 40px 0; }
+
+/* Viewer */
+dialog.viewer {
+  border: 0; padding: 0; border-radius: 24px; background: var(--card); color: var(--fg); width: min(980px, calc(100% - 32px));
+  max-height: calc(100% - 32px); overflow: auto; box-shadow: var(--shadow);
+}
+dialog.viewer::backdrop { background: rgba(0, 0, 0, 0.55); backdrop-filter: blur(6px); }
+.viewer .bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 16px; }
+.viewer .bar .left, .viewer .bar .right { display: flex; gap: 8px; align-items: center; }
+.icon-btn {
+  width: 36px; height: 36px; border-radius: 50%; border: 0; background: var(--chip); color: var(--fg); cursor: pointer;
+  font-size: 18px; display: inline-flex; align-items: center; justify-content: center;
+}
+.toggle { display: inline-flex; align-items: center; gap: 8px; font-size: 14px; color: var(--muted); cursor: pointer; }
+.toggle input { accent-color: var(--accent); width: 16px; height: 16px; }
+.viewer .info { padding: 18px 22px 24px; display: grid; gap: 14px; }
+.viewer .info h3 { font-size: clamp(20px, 3vw, 26px); line-height: 1.25; }
+.viewer dl { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin: 0; }
+.viewer dt { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
+.viewer dd { margin: 2px 0 0; font-size: 15px; text-transform: capitalize; }
+.viewer .ctx { color: var(--muted); font-size: 15px; }
+.legend { display: flex; gap: 16px; font-size: 13px; color: var(--muted); flex-wrap: wrap; }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.swatch { width: 18px; height: 4px; border-radius: 2px; display: inline-block; }
+@media (max-width: 560px) { .viewer dl { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+/* Dataset */
+.cards2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; }
+@media (max-width: 720px) { .cards2 { grid-template-columns: 1fr; } }
+.code {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 18px; padding: 12px 14px;
+  border-radius: 12px; background: var(--band); font-family: var(--mono); font-size: 13px; min-width: 0;
+}
+.code code { overflow-x: auto; white-space: nowrap; min-width: 0; }
+.copy { border: 0; background: var(--chip); color: var(--fg); border-radius: 980px; padding: 6px 12px; font-size: 13px; cursor: pointer; flex: none; }
+.panel .links { margin-top: 18px; display: flex; gap: 18px; flex-wrap: wrap; font-size: 15px; }
+.facts { margin-top: 16px; display: grid; gap: 6px; color: var(--muted); font-size: 15px; }
+.facts b { color: var(--fg); font-weight: 600; font-variant-numeric: tabular-nums; }
+
+footer { padding-block: 40px 56px; color: var(--muted); font-size: 12px; border-top: 1px solid var(--line); }
+footer .wrap { display: grid; gap: 8px; }
+</style>
+<style>
+/* Results */
+.rtable { width: 100%; border-collapse: collapse; font-size: 15px; background: var(--card); border-radius: 18px; overflow: hidden; box-shadow: var(--shadow); }
+.rtable th, .rtable td { padding: 12px 16px; text-align: left; border-bottom: 1px solid var(--line); }
+.rtable th { font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); font-weight: 600; }
+.rtable td.n, .rtable th.n { text-align: right; font-variant-numeric: tabular-nums; }
+.rtable tr.ours td { font-weight: 600; color: var(--accent); }
+.rtable tr:last-child td { border-bottom: 0; }
+.rwrap { overflow-x: auto; border-radius: 18px; }
+.compare { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 14px; margin-top: 28px; }
+.compare .c { background: var(--card); border-radius: 18px; padding: 18px 14px; text-align: center; min-width: 0; }
+.compare .c .v { font-family: var(--display); font-size: 30px; font-weight: 700; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; }
+.compare .c .k { color: var(--muted); font-size: 13px; margin-top: 4px; }
+.compare .c.ours { outline: 2px solid var(--accent); }
+.compare .c.ours .v { color: var(--accent); }
+@media (max-width: 720px) { .compare { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.realfig { margin: 36px auto 0; max-width: 880px; border-radius: 22px; overflow: hidden; box-shadow: var(--shadow); background: var(--card); }
+.realfig img { display: block; width: 100%; height: auto; }
+.realfig figcaption { padding: 14px 20px; color: var(--muted); font-size: 14px; }
+.note { color: var(--muted); font-size: 14px; text-align: center; max-width: 720px; margin: 24px auto 0; }
+
+/* Try it */
+.try { max-width: 880px; margin: 0 auto; background: var(--card); border-radius: 28px; box-shadow: var(--shadow); overflow: hidden; }
+.try .controls { padding: 22px 24px; display: grid; gap: 12px; }
+.try .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+.try input[type="text"] { flex: 1 1 260px; padding: 12px 16px; border-radius: 980px; border: 1px solid var(--line); background: var(--bg); color: var(--fg); font: inherit; font-size: 16px; min-width: 0; }
+.try input[type="file"] { display: none; }
+.try .status { color: var(--muted); font-size: 14px; min-height: 20px; }
+.try .scene { display: none; }
+.try .scene.show { display: block; }
+.try .scene canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+.try .raw { font-family: var(--mono); font-size: 12px; color: var(--muted); padding: 0 24px 20px; overflow-wrap: anywhere; }
+.btn:disabled { opacity: 0.5; cursor: default; }
 </style>
 </head>
 <body>
-<main>
-  <h1>Tracely</h1>
-  <p class="tag">A vision-language model that looks at a street photo and draws where a person would walk, trained only on synthetic scenes.</p>
-  <div class="links">
-    <a href="https://huggingface.co/ahd03/tracely">Model</a>
-    <a href="https://huggingface.co/datasets/ahd03/vln-synthetic-streets">Dataset</a>
-    <a href="https://github.com/ahedmousa1-crypto/vlm-navigation">Code</a>
-    <a href="https://arxiv.org/abs/2510.26909">NaviTrace benchmark</a>
-  </div>
 
-  <div class="stats">
-    <div class="stat"><b>36.9</b><span>NaviTrace score (Human). Untrained model: &minus;28.3</span></div>
-    <div class="stat"><b>10,220</b><span>synthetic samples in three worlds</span></div>
-    <div class="stat"><b>5,373</b><span>first-person cameras</span></div>
-    <div class="stat"><b>8B</b><span>Qwen3-VL + a 175 MB LoRA adapter</span></div>
-  </div>
-
-  <h2>Try it</h2>
-  <div class="demo">
-    <p>Upload a first-person street photo, write an instruction, and Tracely draws the walking path. The model runs on a cloud GPU that starts on demand: if nobody has used it in the last few minutes, the first request takes 3-4 minutes while the model loads; after that each request takes about 15 seconds. The demo is limited to 100 requests a day.</p>
-    <div class="row">
-      <input type="file" id="file" accept="image/*">
+<nav class="top" aria-label="Main">
+  <div class="wrap">
+    <a class="brand" href="#top">Tracely</a>
+    <div class="links">
+      <a href="#overview">Overview</a>
+      <a class="opt" href="#how">How it's made</a>
+      <a href="#explore">Explore</a>
+      <a href="#results">Results</a>
+      <a href="#try">Try it</a>
+      <a class="opt" href="#dataset">Dataset</a>
     </div>
-    <div class="row">
-      <input type="text" id="task" placeholder="e.g. Go to the bench on the left" value="Go to the bench on the left">
-      <button id="go">Draw the path</button>
+  </div>
+</nav>
+
+<header class="hero" id="top">
+  <div class="wrap">
+    <p class="eyebrow">Synthetic data for vision-language navigation</p>
+    <h1>Teaching AI to find its way through a city.</h1>
+    <p class="sub">Tracely looks at a street photo and an instruction, and draws the path a person would walk. It learned from 10,220 scenes built in 3D, labeled by geometry, and it beats every published model on the NaviTrace benchmark.</p>
+    <div class="ctas">
+      <a class="btn primary" href="#try">Try it on your photo</a>
+      <a class="btn ghost" href="#explore">Explore the scenes</a>
     </div>
-    <div class="status" id="status">Pick a photo to start. Nothing is stored.</div>
-    <canvas id="canvas"></canvas>
-    <p class="small" id="raw"></p>
+    <figure class="feature" id="feature" style="margin-inline:auto"></figure>
   </div>
+</header>
 
-  <h2>The idea</h2>
-  <p>NaviTrace asks a model to turn an instruction such as <em>"Go to the bench on the left"</em> into a path through a real photo, scored against a path drawn by a human expert. Models are good at describing the scene but poor at this: the best published model scores about 35 out of 100, a human expert 75.</p>
-  <p>Instead of annotating photographs by hand, this project built three towns in Blender with procedural scripts: a streets town, an old town on two levels with people and cafes, and a university campus above a lake. In a 3D scene the walkable surfaces, obstacles and people are known, so the correct path is computed by a route planner and projected into each rendered image exactly. 5,373 cameras gave 10,220 samples with no manual labels.</p>
-  <div class="grid2">
-    <figure><img src="img/w3_overview.jpg" alt="Top-down view of the campus world"><figcaption>World 3, the campus and waterfront, from above.</figcaption></figure>
-    <figure><img src="img/w3_example.jpg" alt="A rendered campus scene with the walking path drawn in red"><figcaption>"Go to the person in the red sweater on the left": the path keeps to the pavement around the lawn.</figcaption></figure>
+<section class="band" aria-label="Key numbers">
+  <div class="wrap stats">
+    <div class="stat"><div class="num">36.9</div><div class="lbl">NaviTrace score, from −28.3</div></div>
+    <div class="stat"><div class="num">10,220</div><div class="lbl">labeled scenes</div></div>
+    <div class="stat"><div class="num">3</div><div class="lbl">worlds, 125 blocks</div></div>
+    <div class="stat"><div class="num">8B</div><div class="lbl">parameters, open model</div></div>
   </div>
+</section>
 
-  <h2>Results</h2>
-  <p>Qwen3-VL-8B was fine-tuned with LoRA on the synthetic data in three rounds, one per world. Scores are on the 500 Human scenarios of the NaviTrace validation split with the official scoring code: 0 means walking straight ahead, 100 means matching the expert.</p>
-  <table>
-    <tr><th>Category</th><th class="n">Untrained</th><th class="n">World 1</th><th class="n">Worlds 1+2</th><th class="n">Tracely (1+2+3)</th></tr>
-    <tr class="ours"><td>Overall</td><td class="n">&minus;28.3</td><td class="n">26.0</td><td class="n">28.3</td><td class="n">36.9</td></tr>
-    <tr><td>Dynamic Obstacle</td><td class="n">&minus;25.0</td><td class="n">31.2</td><td class="n">41.4</td><td class="n">50.5</td></tr>
-    <tr><td>Stationary Obstacle</td><td class="n">&minus;23.7</td><td class="n">28.6</td><td class="n">32.1</td><td class="n">41.1</td></tr>
-    <tr><td>Semantic Terrain</td><td class="n">&minus;24.0</td><td class="n">26.3</td><td class="n">26.8</td><td class="n">39.7</td></tr>
-    <tr><td>Geometric Terrain</td><td class="n">&minus;27.8</td><td class="n">25.1</td><td class="n">26.9</td><td class="n">36.1</td></tr>
-    <tr><td>Accessibility</td><td class="n">&minus;34.1</td><td class="n">24.4</td><td class="n">25.7</td><td class="n">32.8</td></tr>
-    <tr><td>Visibility</td><td class="n">&minus;27.6</td><td class="n">24.1</td><td class="n">24.8</td><td class="n">30.3</td></tr>
-    <tr><td>Social Norms</td><td class="n">&minus;59.8</td><td class="n">10.5</td><td class="n">15.7</td><td class="n">24.1</td></tr>
-  </table>
-  <p>For comparison, the Human-only means of published models on the NaviTrace leaderboard: human expert 75.5, Gemini 2.5 Pro 35.4, GPT-5 21.1, Qwen3-VL-235B Thinking 19.3, o3 17.8. Tracely is measured on the validation split and has not been submitted to the leaderboard, so the comparison is indicative.</p>
-  <figure><img src="img/real_examples.jpg" alt="Four real NaviTrace photos with the expert path in green and Tracely's path in red"><figcaption>Tracely on real NaviTrace photos: expert path in green, Tracely in red, score in the corner. Bottom right is a failure: the wrong goal.</figcaption></figure>
+<section id="overview">
+  <div class="wrap">
+    <div class="head">
+      <h2>Show the way, not just the answer.</h2>
+      <p>Vision-language models can describe a street. Drawing a sensible walking route through it is much harder.</p>
+    </div>
+    <div class="two">
+      <div class="panel">
+        <h3>The problem</h3>
+        <p>The NaviTrace benchmark asks a model to draw the path a person should take in a real photo, scored against a human expert. Leading models fall well short of people, mostly because they struggle to <strong>locate the goal</strong> and to <strong>ground space</strong>: where the sidewalk is, which way the crosswalk goes, what is in the way.</p>
+      </div>
+      <div class="panel">
+        <h3>Our approach</h3>
+        <p>Real traces are slow and costly to draw by hand. So we build towns in 3D, place a camera at eye height, and <strong>compute</strong> the route from the scene itself. Every path is exact by construction. An open 8B model fine-tuned on these scenes alone, Tracely, went from worse-than-straight-ahead to <strong>first among published models</strong> on real photos.</p>
+      </div>
+    </div>
+  </div>
+</section>
 
-  <h2>What was learned</h2>
-  <p>Synthetic data transfers to real photographs: a model that never saw a real walking path gained 65 points. Each world helped most in the situations it was built to add: people and queues raised Dynamic Obstacle and Social Norms; lawns, water, bike lanes and stairs raised Semantic and Geometric Terrain. And variety beat volume: the third world, with new zones and a photographic look, gave almost four times the gain of the second.</p>
+<section class="band" id="how">
+  <div class="wrap">
+    <div class="head">
+      <h2>How a scene is made.</h2>
+      <p>Four steps turn a procedural town into training data.</p>
+    </div>
+    <div class="steps">
+      <div class="step" style="background: var(--card)"><div class="n">Step 1</div><h3>Build a world</h3><p>A streets town, an old town on two levels with people and cafes, and a campus above a lake with a promenade, stairs and lawns. Every surface is tagged.</p></div>
+      <div class="step" style="background: var(--card)"><div class="n">Step 2</div><h3>Place a camera</h3><p>At eye height on a sidewalk, square or park path, looking where a pedestrian would. 5,373 cameras in all.</p></div>
+      <div class="step" style="background: var(--card)"><div class="n">Step 3</div><h3>Plan the walk</h3><p>A* search on a 25 cm walkability map: sidewalks preferred, roads only at crossings, around groups of people, stairs or ramps where needed.</p></div>
+      <div class="step" style="background: var(--card)"><div class="n">Step 4</div><h3>Render and label</h3><p>The image, a per-pixel class mask, the task in plain English, and the path in image pixels.</p></div>
+    </div>
+  </div>
+</section>
 
-  <footer>
-    Ahed Mousa, 2026. Dataset CC BY 4.0, model adapter Apache 2.0, code MIT. Built with Blender, Qwen3-VL, PEFT and Modal. Benchmark: Windecker et al., NaviTrace (2025).
-  </footer>
-</main>
+<section id="explore">
+  <div class="wrap">
+    <div class="head">
+      <h2>Explore the scenes.</h2>
+      <p>A sample from the three worlds. Open any scene to see the task, its labels, and the route a person would take.</p>
+    </div>
+    <div class="filters" role="group" aria-label="Filter scenes" id="filters"></div>
+    <div class="grid" id="grid"></div>
+    <p class="empty" id="empty" hidden>No scenes match this filter.</p>
+  </div>
+</section>
+
+<section class="band" id="results">
+  <div class="wrap">
+    <div class="head">
+      <h2>Trained on renders. Tested on photos.</h2>
+      <p>Qwen3-VL-8B, fine-tuned with LoRA on the synthetic scenes only, scored on the 500 Human scenarios of the NaviTrace validation split with the official code. 0 is walking straight ahead, 100 is the expert path.</p>
+    </div>
+    <div class="rwrap"><table class="rtable">
+      <tr><th>Category</th><th class="n">Untrained</th><th class="n">World 1</th><th class="n">Worlds 1+2</th><th class="n">Tracely</th></tr>
+      <tr class="ours"><td>Overall</td><td class="n">−28.3</td><td class="n">26.0</td><td class="n">28.3</td><td class="n">36.9</td></tr>
+      <tr><td>Dynamic Obstacle</td><td class="n">−25.0</td><td class="n">31.2</td><td class="n">41.4</td><td class="n">50.5</td></tr>
+      <tr><td>Stationary Obstacle</td><td class="n">−23.7</td><td class="n">28.6</td><td class="n">32.1</td><td class="n">41.1</td></tr>
+      <tr><td>Semantic Terrain</td><td class="n">−24.0</td><td class="n">26.3</td><td class="n">26.8</td><td class="n">39.7</td></tr>
+      <tr><td>Geometric Terrain</td><td class="n">−27.8</td><td class="n">25.1</td><td class="n">26.9</td><td class="n">36.1</td></tr>
+      <tr><td>Accessibility</td><td class="n">−34.1</td><td class="n">24.4</td><td class="n">25.7</td><td class="n">32.8</td></tr>
+      <tr><td>Visibility</td><td class="n">−27.6</td><td class="n">24.1</td><td class="n">24.8</td><td class="n">30.3</td></tr>
+      <tr><td>Social Norms</td><td class="n">−59.8</td><td class="n">10.5</td><td class="n">15.7</td><td class="n">24.1</td></tr>
+    </table></div>
+    <div class="compare">
+      <div class="c"><div class="v">75.5</div><div class="k">Human expert</div></div>
+      <div class="c ours"><div class="v">36.9</div><div class="k">Tracely (8B)</div></div>
+      <div class="c"><div class="v">35.4</div><div class="k">Gemini 2.5 Pro</div></div>
+      <div class="c"><div class="v">21.1</div><div class="k">GPT-5</div></div>
+      <div class="c"><div class="v">19.3</div><div class="k">Qwen3-VL 235B</div></div>
+    </div>
+    <p class="note">Published scores are Human-only means from the NaviTrace leaderboard (hidden test split). Tracely is measured on the validation split and has not been submitted, so the comparison is indicative.</p>
+    <figure class="realfig">
+      <img src="img/real_examples.jpg" alt="Four real NaviTrace photos with the expert path in green and Tracely's path in red" loading="lazy">
+      <figcaption>Tracely on real NaviTrace photos it never saw: expert path in green, Tracely in red, score in the corner. Bottom right is a miss: the wrong bus stop.</figcaption>
+    </figure>
+  </div>
+</section>
+
+<section id="try">
+  <div class="wrap">
+    <div class="head">
+      <h2>Try it on your photo.</h2>
+      <p>Upload a first-person street photo, write an instruction, and Tracely draws the walk. It runs on a cloud GPU that starts on demand: the first request after a quiet spell takes 3-4 minutes, then about 15 seconds each. 100 requests a day.</p>
+    </div>
+    <div class="try">
+      <div class="controls">
+        <div class="row">
+          <label class="btn ghost" for="file" id="filelbl">Choose a photo</label>
+          <input type="file" id="file" accept="image/*">
+          <span class="status" id="status">Nothing is stored. Photos are resized to 1024 px before upload.</span>
+        </div>
+        <div class="row">
+          <input type="text" id="task" placeholder="e.g. Go to the bench on the left" value="Go to the bench on the left" aria-label="Instruction">
+          <button class="btn primary" id="go" type="button">Draw the path</button>
+        </div>
+      </div>
+      <div class="scene" id="tscene"><img id="timg" alt=""><canvas id="tcanvas"></canvas></div>
+      <p class="raw" id="raw"></p>
+    </div>
+  </div>
+</section>
+
+<section class="band" id="dataset">
+  <div class="wrap">
+    <div class="head">
+      <h2>Open data. Open model. Open code.</h2>
+      <p>Use the dataset or the model in your own experiments, or generate more scenes with the pipeline.</p>
+    </div>
+    <div class="cards2">
+      <div class="panel">
+        <h3>Dataset</h3>
+        <p>NaviTrace columns: image, task, embodiment, ground-truth path, segmentation mask, categories and metadata.</p>
+        <div class="facts">
+          <div><b>8,392</b> training scenes · <b>1,828</b> test scenes, whole blocks held out</div>
+          <div>Goal tasks <b>8,720</b> · Directions tasks <b>1,502</b></div>
+          <div>Three worlds · <b>5</b> lighting conditions · License <b>CC BY 4.0</b></div>
+        </div>
+        <div class="code"><code id="snippet">load_dataset("ahd03/vln-synthetic-streets")</code><button class="copy" id="copy" type="button" data-for="snippet">Copy</button></div>
+        <div class="links"><a href="https://huggingface.co/datasets/ahd03/vln-synthetic-streets" target="_blank" rel="noopener">Hugging Face ↗</a></div>
+      </div>
+      <div class="panel">
+        <h3>Model and pipeline</h3>
+        <p>Tracely is a 175 MB LoRA adapter for Qwen3-VL-8B-Instruct, trained in three rounds, one per world. The repository has the Blender scripts that build worlds, place cameras, plan routes and render, plus training, scoring and this demo.</p>
+        <div class="facts">
+          <div>Base <b>Qwen3-VL-8B</b> · LoRA rank <b>16</b> · about <b>4 h</b> on one A100</div>
+          <div>Adapter <b>Apache 2.0</b> · Code <b>MIT</b></div>
+        </div>
+        <div class="code"><code id="snippet2">PeftModel.from_pretrained(model, "ahd03/tracely")</code><button class="copy" id="copy2" type="button" data-for="snippet2">Copy</button></div>
+        <div class="links"><a href="https://huggingface.co/ahd03/tracely" target="_blank" rel="noopener">Model ↗</a><a href="https://github.com/ahedmousa1-crypto/tracely" target="_blank" rel="noopener">GitHub ↗</a><a href="https://arxiv.org/abs/2510.26909" target="_blank" rel="noopener">NaviTrace paper ↗</a></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <p>Tracely by Ahed Mousa, 2026. Sample format, prompts and categories follow NaviTrace (Windecker et al., 2025).</p>
+    <p>Built with Blender, Qwen3-VL, PEFT and Modal. Poly Haven skies and textures, Quaternius animal meshes (CC0). Paths in the viewer are drawn for illustration; dataset images are clean.</p>
+  </div>
+</footer>
+
+<dialog class="viewer" id="viewer" aria-labelledby="v-task">
+  <div class="bar">
+    <div class="left">
+      <button class="icon-btn" id="v-prev" type="button" aria-label="Previous scene">‹</button>
+      <button class="icon-btn" id="v-next" type="button" aria-label="Next scene">›</button>
+    </div>
+    <div class="right">
+      <label class="toggle" for="v-path"><input type="checkbox" id="v-path" checked> Show path</label>
+      <button class="icon-btn" id="v-close" type="button" aria-label="Close">×</button>
+    </div>
+  </div>
+  <div class="scene" id="v-scene"></div>
+  <div class="info">
+    <h3 id="v-task"></h3>
+    <div class="legend" id="v-legend"></div>
+    <dl>
+      <div><dt>Task type</dt><dd id="v-type"></dd></div>
+      <div><dt>Place</dt><dd id="v-place"></dd></div>
+      <div><dt>Lighting</dt><dd id="v-light"></dd></div>
+      <div><dt>World</dt><dd id="v-split"></dd></div>
+    </dl>
+    <div class="tags" id="v-cats"></div>
+    <p class="ctx" id="v-ctx"></p>
+  </div>
+</dialog>
+
 <script>
-  const ENDPOINT = "https://ahed-mousa1--tracely-demo-trace.us-east.modal.run";
-  const file = document.getElementById("file"), task = document.getElementById("task"), go = document.getElementById("go");
-  const status = document.getElementById("status"), canvas = document.getElementById("canvas"), raw = document.getElementById("raw");
-  let img = null, dataUrl = null;
-  file.addEventListener("change", () => {
-    const f = file.files[0]; if (!f) return;
-    const reader = new FileReader();
-    reader.onload = () => { dataUrl = reader.result; img = new Image(); img.onload = () => { draw([]); status.textContent = "Ready. Write the instruction and press the button."; }; img.src = dataUrl; };
-    reader.readAsDataURL(f);
+const SAMPLES = [{"id":"2ef59bfd-9d26-5490-9474-83968b2c5408","img":"images/2ef59bfd.jpg","task":"Go sit on the bench next to the person in the black sweater","type":"Goal","category":["Stationary Obstacle","Dynamic Obstacle"],"lighting":"day","variant":"campus_slope","target":"bench","split":"train","world":3,"paths":[[[653.73,1023.5],[703.05,961.65],[750.28,898.17],[797.52,834.69],[844.75,771.21],[891.99,707.74],[939.22,644.26],[986.46,580.78],[1033.69,517.3],[1046.01,516.19]]],"context":"Slope between the waterfront and the campus, with stairs and ramps; People walking and standing nearby; Visible targets: bench"},{"id":"a3a81899-7983-5fbe-9d99-2b7489799d28","img":"images/a3a81899.jpg","task":"Get up onto the platform on the right","type":"Goal","category":["Social Norms","Geometric Terrain","Accessibility","Stationary Obstacle"],"lighting":"day","variant":"plaza","target":"platform","split":"test","paths":[[[640.47,1023.5],[615.67,996.91],[558.44,906.44],[501.23,815.97],[444.0,725.5],[385.23,637.04],[436.82,603.65],[487.65,567.46],[497.43,551.27],[601.4,542.26],[704.73,537.32],[808.66,527.88],[912.58,518.44],[955.94,494.56],[1001.99,495.19]],[[640.47,1023.5],[615.67,996.91],[539.37,876.29],[463.08,755.66],[385.23,637.04],[447.8,595.39],[507.47,553.05],[694.07,541.1],[880.03,532.99],[1066.59,520.46],[1138.29,520.31],[1209.99,520.16],[1215.44,511.86],[1083.76,495.34],[1001.99,495.19]]],"context":"Wide paved plaza in front of large buildings; Brown dog nearby; Visible targets: platform","world":1},{"id":"02612c82-6e3d-5282-9013-51d25898d3b1","img":"images/02612c82.jpg","task":"Go sit on the bench on the right","type":"Goal","category":["Social Norms","Stationary Obstacle","Dynamic Obstacle","Visibility"],"lighting":"night","variant":"campus_buildings","target":"bench","split":"train","world":3,"paths":[[[640.66,1023.49],[704.59,976.4],[768.53,929.31],[829.71,878.81],[893.87,832.04],[958.11,785.37],[1022.35,738.7],[1086.59,692.03],[1150.83,645.37],[1215.07,598.7],[1184.02,587.29],[1151.71,579.89],[1103.36,574.04],[1055.02,568.2]]],"context":"University campus between faculty buildings; Night, street lamps and some windows lit; People walking and standing nearby; Visible targets: bench"},{"id":"e2f904cf-1a2c-577e-8418-d7a77b4ceef2","img":"images/e2f904cf.jpg","task":"Go straight for about 20 meters, then turn left, then cross the street at the crosswalk, then continue to the street lamp","type":"Directions","category":["Social Norms","Geometric Terrain","Stationary Obstacle"],"lighting":"day","variant":"street","target":"street_lamp","split":"test","paths":[[[698.63,1023.5],[731.37,945.19],[762.2,866.07],[793.03,786.95],[823.86,707.84],[854.69,628.72],[885.52,549.6],[834.15,533.17],[743.31,536.4],[652.12,534.88],[560.92,533.36],[470.0,530.48],[379.01,526.26],[287.81,524.82],[196.61,523.37]]],"context":"Sidewalk along a street with a grass area behind it; Bike lane next to the curb; Visible targets: street lamp","world":1},{"id":"ed69c856-cc50-5922-9c6a-11af03d057ce","img":"images/ed69c856.jpg","task":"Go to the person in the red sweater on the left","type":"Goal","category":["Semantic Terrain"],"lighting":"overcast","variant":"campus_quad","target":"person","split":"train","world":3,"paths":[[[736.18,1005.69],[721.77,935.01],[707.36,864.33],[692.96,793.66],[678.55,722.98],[654.85,706.86],[580.83,691.65],[506.81,676.44],[433.68,669.53],[359.4,655.64],[285.12,641.75],[210.84,627.86],[136.89,612.92]]],"context":"Campus lawn crossed by paved paths; Overcast sky; Brown dog nearby; People walking and standing nearby; Visible targets: person"},{"id":"4fbeff6d-bd6c-583b-93bf-04e92a80a47f","img":"images/4fbeff6d.jpg","task":"Go to the front door of the gray house ahead","type":"Goal","category":["Accessibility"],"lighting":"day","variant":"neighborhood","target":"door","split":"test","paths":[[[713.53,992.44],[685.4,956.45],[657.28,920.47],[629.16,884.48],[601.03,848.5],[572.91,812.51]],[[713.53,992.44],[685.4,956.45],[657.28,920.47],[629.16,884.48],[601.03,848.5],[572.91,812.51]]],"context":"Residential street with houses, front lawns and driveways; Visible targets: door","world":1},{"id":"d3bc6526-92d2-59e9-ae28-b042f310cfb1","img":"images/d3bc6526.jpg","task":"Walk up to the person in the black coat ahead","type":"Goal","category":["Semantic Terrain"],"lighting":"day","variant":"campus_slope","target":"person","split":"train","world":3,"paths":[[[688.99,1007.69],[728.48,950.61],[767.97,893.52],[807.46,836.44],[846.94,779.36],[886.43,722.27]]],"context":"Slope between the waterfront and the campus, with stairs and ramps; People walking and standing nearby; Visible targets: person"},{"id":"7eb7516f-253d-579e-b027-bb7cf10eb535","img":"images/7eb7516f.jpg","task":"Cross the pond on the bridge","type":"Goal","category":["Geometric Terrain","Visibility"],"lighting":"night","variant":"park","target":"bridge","split":"test","paths":[[[661.43,1018.94],[667.45,949.72],[673.47,880.49],[679.49,811.27],[685.5,742.05],[690.24,672.75],[696.66,603.57],[702.73,543.99]]],"context":"Park with paths, trees, a fountain, a pond and a playground; Night, street lamps and some windows lit; Black dog nearby; Visible targets: bridge","world":1},{"id":"cf5cc89d-59b7-58c8-86e9-75eebb556c8c","img":"images/cf5cc89d.jpg","task":"Walk up to the person in the black coat on the left","type":"Goal","category":["Semantic Terrain"],"lighting":"dusk","variant":"waterfront","target":"person","split":"train","world":3,"paths":[[[677.08,1017.91],[638.51,955.37],[599.93,892.82],[561.36,830.28],[522.79,767.73],[484.21,705.18],[445.64,642.64],[407.07,580.09],[347.51,574.53],[287.84,569.85],[228.17,565.18],[168.51,560.5]]],"context":"Waterfront by a lake with a promenade, a bike lane and a boardwalk; Dusk, street lamps on; People walking and standing nearby; Visible targets: person"},{"id":"9da40bb2-490a-5e71-ba3c-2297f9e37fbb","img":"images/9da40bb2.jpg","task":"Go to the vending machine ahead","type":"Goal","category":["Stationary Obstacle"],"lighting":"dusk","variant":"park","target":"vending_machine","split":"test","paths":[[[675.81,1023.5],[685.54,940.1],[694.18,856.58],[702.82,773.05],[711.47,689.52],[720.11,605.99],[649.32,597.45],[578.52,588.91],[507.73,580.37],[436.66,576.14],[422.98,566.57],[491.82,543.65],[560.65,520.73]]],"context":"Park with paths, trees, a fountain, a pond and a playground; Dusk, street lamps on; Visible targets: vending machine","world":1},{"id":"b20c5057-9e1a-5a56-ab90-9957bb4cac7b","img":"images/b20c5057.jpg","task":"Walk to the bike rack ahead","type":"Goal","category":["Visibility"],"lighting":"night","variant":"campus_buildings","target":"bike_rack","split":"train","world":3,"paths":[[[694.84,1020.12],[676.96,949.0],[659.09,877.88],[641.22,806.77],[623.35,735.65],[663.32,678.82],[703.3,622.0]]],"context":"University campus between faculty buildings; Night, street lamps and some windows lit; People walking and standing nearby; Visible targets: bike rack"},{"id":"f23ac61c-7d68-5aad-bb50-ff2e00dcd2e2","img":"images/f23ac61c.jpg","task":"Go straight for about 15 meters, then turn right, then continue to the black dog","type":"Directions","category":["Visibility"],"lighting":"night","variant":"park","target":"dog","split":"test","paths":[[[669.99,1023.5],[648.13,944.9],[627.64,865.91],[607.15,786.93],[586.66,707.94],[566.17,628.96],[545.68,549.97],[560.12,542.63],[605.24,542.08],[650.36,541.54]]],"context":"Park with paths, trees, a fountain, a pond and a playground; Night, street lamps and some windows lit; Black dog nearby; Visible targets: dog","world":1},{"id":"461d5488-a543-5649-9bbf-c9cd4b76682a","img":"images/461d5488.jpg","task":"Go to the black cat ahead","type":"Goal","category":["Stationary Obstacle"],"lighting":"dusk","variant":"neighborhood","target":"cat","split":"test","paths":[[[701.73,1023.5],[679.28,953.56],[658.38,883.12],[637.47,812.68],[616.57,742.24],[595.67,671.8],[574.76,601.36],[553.86,530.92]]],"context":"Residential street with houses, front lawns and driveways; Dusk, street lamps on; Black cat nearby; Visible targets: cat","world":1},{"id":"f7c24bb6-439e-5973-b90d-d1c3a904ea9a","img":"images/f7c24bb6.jpg","task":"Go straight for about 20 meters, then bear left, then bear right, then continue to the bush","type":"Directions","category":["Stationary Obstacle"],"lighting":"day","variant":"park","target":"bush","split":"test","paths":[[[585.19,995.39],[528.93,947.86],[472.68,900.33],[416.43,852.8],[360.17,805.28],[303.92,757.75],[335.35,685.03],[366.78,612.31],[398.21,539.6],[326.14,540.06],[252.97,535.07],[179.71,533.01],[196.3,525.85]]],"context":"Park with paths, trees, a fountain, a pond and a playground; Golden dog nearby; Visible targets: bush","world":1},{"id":"a3fbd152-a9ce-5142-b58d-a98c3011003a","img":"images/a3fbd152.jpg","task":"Go straight for about 5 meters, then bear right, then bear left, then continue to the street lamp","type":"Directions","category":["Semantic Terrain"],"lighting":"day","variant":"park","target":"street_lamp","split":"test","paths":[[[668.2,1021.2],[666.19,949.09],[664.19,876.98],[662.19,804.87],[660.18,732.76],[658.18,660.65],[682.2,666.36],[751.0,650.68],[820.29,637.01],[889.58,623.35],[958.48,608.22],[894.15,571.51],[829.82,534.79]]],"context":"Park with paths, trees, a fountain, a pond and a playground; Visible targets: street lamp","world":1},{"id":"24647ad5-0547-58a9-a7af-f8e59c3c462b","img":"images/24647ad5.jpg","task":"Go to the fire hydrant beside the lit street lamp","type":"Goal","category":["Social Norms","Geometric Terrain","Visibility"],"lighting":"night","variant":"skate","target":"fire_hydrant","split":"train","paths":[[[675.58,1023.5],[711.01,997.85],[796.45,906.39],[881.88,814.92],[967.32,723.46],[1052.76,632.0],[1135.54,539.57],[1061.48,530.09],[988.32,515.14],[869.32,515.27],[750.31,515.4],[631.3,515.53],[512.29,515.66],[393.28,515.79],[274.27,515.92]]],"context":"Skate park and basketball court; Night, street lamps and some windows lit; Visible targets: fire hydrant","world":1},{"id":"dc2c57ab-a913-57d9-8344-befe314c9c25","img":"images/dc2c57ab.jpg","task":"Go to the skate ramp on the left","type":"Goal","category":["Semantic Terrain"],"lighting":"day","variant":"skate","target":"skate_ramp","split":"train","paths":[[[670.75,1023.5],[666.45,953.72],[662.78,883.89],[659.12,814.07],[655.45,744.25],[651.79,674.42],[648.13,604.6],[644.46,534.78],[575.55,537.31],[506.26,536.59],[436.97,535.88],[367.68,535.17],[298.39,534.45],[229.1,533.74],[159.81,533.03]]],"context":"Skate park and basketball court; Gray cat nearby; Visible targets: skate ramp","world":1},{"id":"bc9db7be-d8b4-5b9a-ac63-4e059bce40fc","img":"images/bc9db7be.jpg","task":"Walk to the garbage bin on the left","type":"Goal","category":["Semantic Terrain"],"lighting":"dusk","variant":"neighborhood","target":"wheelie_bin","split":"train","paths":[[[715.2,1023.5],[675.5,959.12],[638.24,893.24],[600.99,827.35],[563.74,761.46],[526.49,695.57],[489.24,629.69],[451.99,563.8],[432.47,561.43]]],"context":"Residential street with houses, front lawns and driveways; Dusk, street lamps on; Gray cat nearby; Visible targets: wheelie bin","world":1},{"id":"eaa7d781-3d4d-5c08-ade1-507e515f50a7","img":"images/eaa7d781.jpg","task":"Go straight for about 20 meters, then bear left, then continue to the street lamp","type":"Directions","category":["Semantic Terrain"],"lighting":"overcast","variant":"skate","target":"street_lamp","split":"train","paths":[[[678.76,1023.5],[638.91,955.69],[601.38,886.52],[563.86,817.34],[526.33,748.17],[488.8,679.0],[451.28,609.82],[413.75,540.65],[360.84,530.92],[306.31,526.18]]],"context":"Skate park and basketball court; Overcast sky; Visible targets: street lamp","world":1},{"id":"adbbaa07-5df4-538f-b318-a553dbb71894","img":"images/adbbaa07.jpg","task":"Get to the other side of the street","type":"Goal","category":["Social Norms","Geometric Terrain"],"lighting":"day","variant":"park","target":"crosswalk","split":"train","paths":[[[652.2,1023.5],[735.06,958.06],[813.02,886.33],[893.83,818.6],[953.78,762.45],[1013.72,706.3],[1073.67,650.15],[1078.69,629.31],[1103.24,608.22],[1128.2,587.74],[1101.9,591.78],[1024.11,567.28],[947.78,541.78]]],"context":"Park with paths, trees, a fountain, a pond and a playground; Bike lane next to the curb; Visible targets: crosswalk","world":1},{"id":"be2e86a8-15ed-571e-977b-53dfdaddec98","img":"images/be2e86a8.jpg","task":"Go straight for about 15 meters, then cross the street at the crosswalk","type":"Directions","category":["Social Norms","Geometric Terrain"],"lighting":"day","variant":"plaza","target":"crosswalk","split":"train","paths":[[[676.82,1021.17],[637.5,963.41],[598.17,905.65],[558.85,847.89],[519.52,790.14],[480.19,732.38],[440.87,674.62],[398.85,622.33],[362.61,562.87]]],"context":"Wide paved plaza in front of large buildings; Visible targets: crosswalk","world":1},{"id":"ef0fed76-fdd7-5cb7-a392-2f9dc3c757b2","img":"images/ef0fed76.jpg","task":"Walk up to the gray dog on the left","type":"Goal","category":["Social Norms","Geometric Terrain"],"lighting":"overcast","variant":"neighborhood","target":"dog","split":"train","paths":[[[681.78,993.61],[657.02,928.55],[632.26,863.49],[607.51,798.43],[582.75,733.37],[557.99,668.31],[533.24,603.25],[510.01,542.95],[437.06,541.36],[364.03,541.21],[291.0,541.06],[217.96,540.9]]],"context":"Residential street with houses, front lawns and driveways; Overcast sky; Gray dog nearby; Visible targets: dog","world":1},{"id":"9add0d24-77ff-561d-b4d6-ec421ca9c5f7","img":"images/9add0d24.jpg","task":"Go straight for about 20 meters, then bear left, then continue to the lit street lamp","type":"Directions","category":["Stationary Obstacle","Visibility"],"lighting":"night","variant":"street","target":"street_lamp","split":"train","paths":[[[626.08,960.03],[565.28,910.54],[504.49,861.04],[443.69,811.54],[382.9,762.04],[395.69,687.46],[408.47,612.88],[421.26,538.31],[369.63,534.13],[318.01,529.95]]],"context":"Sidewalk along a street with a grass area behind it; Bike lane next to the curb; Night, street lamps and some windows lit; Visible targets: street lamp","world":1},{"id":"6fa40157-e46d-5f57-bcd2-9596cc34fed0","img":"images/6fa40157.jpg","task":"Go to the parked bike on the left","type":"Goal","category":["Stationary Obstacle"],"lighting":"overcast","variant":"construction","target":"bike","split":"train","paths":[[[653.93,1023.5],[653.86,982.12],[653.82,940.73],[653.77,899.35],[653.72,857.96],[653.67,816.58]]],"context":"Sidewalk next to a construction site; Bike lane next to the curb; Overcast sky; Cars stopped in the driving lanes; Visible targets: bike","world":1},{"id":"5e9b52e2-996b-5000-9526-f6b2e60cf627","img":"images/5e9b52e2.jpg","task":"Go to the tree ahead","type":"Goal","category":["Semantic Terrain"],"lighting":"overcast","variant":"narrow","target":"tree","split":"train","paths":[[[711.83,1023.5],[686.16,957.03],[662.31,889.86],[638.46,822.68],[614.61,755.51],[590.76,688.34],[566.9,621.17],[543.05,554.0]]],"context":"Narrow sidewalk between parked cars and row houses; Overcast sky; Visible targets: tree","world":1},{"id":"8f459beb-46aa-59b8-9412-af6795542c13","img":"images/8f459beb.jpg","task":"Go straight for about 5 meters, then cross the street at the crosswalk, then bear right, then bear left, then continue to the front door of the gray house","type":"Directions","category":["Social Norms","Geometric Terrain","Stationary Obstacle"],"lighting":"overcast","variant":"narrow","target":"door","split":"train","paths":[[[785.41,996.99],[806.6,927.02],[827.79,857.05],[848.99,787.08],[870.18,717.11],[887.83,646.35],[969.0,636.43],[1050.56,629.17],[1132.11,621.92],[1213.67,614.67],[1228.13,621.24],[1173.3,600.33],[1118.46,579.41]]],"context":"Narrow sidewalk between parked cars and row houses; Overcast sky; Visible targets: door","world":1},{"id":"39084f9e-6e99-58e5-958b-efd34af18d64","img":"images/39084f9e.jpg","task":"Go straight for about 10 meters, then turn right, then cross the street at the crosswalk","type":"Directions","category":["Social Norms","Geometric Terrain"],"lighting":"dusk","variant":"construction","target":"crosswalk","split":"train","paths":[[[723.22,1023.5],[712.03,935.43],[702.07,847.2],[692.1,758.96],[682.13,670.73],[672.16,582.5],[755.81,587.8],[839.84,587.4],[923.87,587.0],[1007.9,586.6],[1091.93,586.2],[1175.96,585.79],[1259.97,586.26],[1299.66,580.12],[1339.58,576.63]]],"context":"Sidewalk next to a construction site; Bike lane next to the curb; Dusk, street lamps on; Cars stopped in the driving lanes; Visible targets: crosswalk","world":1},{"id":"0995c9bc-6c27-5741-8ee8-49225ef8ca01","img":"images/0995c9bc.jpg","task":"Get to the other side of the street","type":"Goal","category":["Social Norms","Geometric Terrain"],"lighting":"day","variant":"street","target":"crosswalk","split":"train","paths":[[[832.15,998.89],[837.27,923.99],[842.28,849.08],[847.3,774.18],[852.32,699.27],[857.03,624.36]]],"context":"Sidewalk along a street with a grass area behind it; Bike lane next to the curb; Visible targets: crosswalk","world":1},{"id":"e55fbe21-616e-5134-ac77-fcd0e1b8431d","img":"images/e55fbe21.jpg","task":"Go to the tree ahead","type":"Goal","category":["Stationary Obstacle"],"lighting":"day","variant":"narrow","target":"tree","split":"train","paths":[[[700.68,1023.5],[685.79,954.74],[672.83,885.56],[659.87,816.37],[646.91,747.19],[633.95,678.01],[620.99,608.83],[608.02,539.64]]],"context":"Narrow sidewalk between parked cars and row houses; Visible targets: tree","world":1},{"id":"12e1faa3-d766-559d-b57c-8c604abf690a","img":"images/12e1faa3.jpg","task":"Walk over to the trash can near the bench","type":"Goal","category":["Visibility"],"lighting":"moonlight","variant":"plaza","target":"trash_can","split":"train","paths":[[[680.23,1021.16],[624.92,974.94],[569.6,928.72],[514.29,882.5],[458.97,836.27],[403.65,790.05],[348.34,743.83]]],"context":"Wide paved plaza in front of large buildings; Night, only moonlight; Cars stopped in the driving lanes; Visible targets: trash can","world":1},{"id":"65df77a4-c756-5f92-ae07-55d802112499","img":"images/65df77a4.jpg","task":"Cross the street at the crosswalk","type":"Goal","category":["Social Norms","Geometric Terrain"],"lighting":"dusk","variant":"construction","target":"crosswalk","split":"train","paths":[[[724.72,1023.5],[717.14,952.4],[710.69,881.17],[704.24,809.95],[697.8,738.72],[691.35,667.49],[684.9,596.27],[678.6,529.97]]],"context":"Sidewalk next to a construction site; Bike lane next to the curb; Dusk, street lamps on; Visible targets: crosswalk","world":1},{"id":"20f72faf-7aa7-5c1f-98d1-80af5cbd163a","img":"images/20f72faf.jpg","task":"Go sit on the bench ahead","type":"Goal","category":["Stationary Obstacle","Visibility"],"lighting":"night","variant":"park","target":"bench","split":"test","paths":[[[652.97,1023.5],[700.86,962.7],[746.07,899.81],[791.28,836.92],[836.49,774.02],[836.93,704.75],[837.38,635.48],[837.82,566.21],[767.11,563.72]]],"context":"Park with paths, trees, a fountain, a pond and a playground; Night, street lamps and some windows lit; Visible targets: bench","world":1}];
+const PLACE = { park: "Park", neighborhood: "Neighborhood", skate: "Skate park", plaza: "Plaza", street: "Street",
+  narrow: "Narrow street", construction: "Construction site", terrace: "Terrace",
+  old_square: "Old town square", old_upper: "Old town, upper level", old_lower: "Old town, lower level",
+  campus_quad: "Campus quad", campus_buildings: "Campus", campus_slope: "Campus slope", waterfront: "Waterfront",
+  campus_park: "Park belt", campus_library: "Library", campus_construction: "Construction site", campus_parking: "Car park", campus_sports: "Sports field" };
+const WORLD = { 1: "World 1, streets", 2: "World 2, old town", 3: "World 3, campus" };
+const LIGHT = { day: "Day", overcast: "Overcast", dusk: "Dusk", night: "Night", moonlight: "Moonlight" };
+const FILTERS = [
+  ["All", () => true],
+  ["Campus & waterfront", s => s.world === 3],
+  ["Old town", s => s.world === 2],
+  ["Streets town", s => s.world === 1],
+  ["People", s => s.target === "person" || /person|couple|group/.test(s.context)],
+  ["Night & dusk", s => ["night", "dusk", "moonlight"].includes(s.lighting)],
+  ["Directions", s => s.type === "Directions"],
+  ["Stairs or ramp", s => s.paths.length > 1],
+];
+const NS = "http://www.w3.org/2000/svg";
+
+function el(tag, attrs = {}, text) {
+  const node = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) node.setAttribute(k, v);
+  if (text !== undefined) node.textContent = text;
+  return node;
+}
+
+function sceneNode(sample, { animate = false, stroke = 9 } = {}) {
+  const box = el("div", { class: "scene" + (animate ? " draw" : "") });
+  const img = el("img", { src: sample.img, alt: sample.task, loading: "lazy", decoding: "async", width: "960", height: "720" });
+  box.append(img);
+  const svg = document.createElementNS(NS, "svg");
+  svg.setAttribute("viewBox", "0 0 1365 1024");
+  svg.setAttribute("preserveAspectRatio", "none");
+  svg.setAttribute("aria-hidden", "true");
+  sample.paths.forEach((path, i) => {
+    const points = path.map(p => p.join(",")).join(" ");
+    const color = i === 0 ? "var(--path)" : "var(--path-2)";
+    const halo = document.createElementNS(NS, "polyline");
+    halo.setAttribute("points", points);
+    halo.setAttribute("class", "route halo");
+    halo.setAttribute("stroke-width", stroke + 6);
+    const line = document.createElementNS(NS, "polyline");
+    line.setAttribute("points", points);
+    line.setAttribute("class", "route main");
+    line.setAttribute("stroke", color);
+    line.setAttribute("stroke-width", stroke);
+    let len = 0;
+    for (let k = 1; k < path.length; k++) len += Math.hypot(path[k][0] - path[k - 1][0], path[k][1] - path[k - 1][1]);
+    line.style.setProperty("--len", Math.ceil(len));
+    svg.append(halo, line);
+    const end = path[path.length - 1];
+    const dot = document.createElementNS(NS, "circle");
+    dot.setAttribute("cx", end[0]); dot.setAttribute("cy", end[1]); dot.setAttribute("r", stroke * 1.3);
+    dot.setAttribute("fill", color); dot.setAttribute("class", "dot"); dot.setAttribute("stroke-width", 3);
+    svg.append(dot);
   });
-  function draw(points) {
-    if (!img) return;
-    const maxW = 1200, s = Math.min(1, maxW / img.width);
-    canvas.width = Math.round(img.width * s); canvas.height = Math.round(img.height * s); canvas.style.display = "block";
-    const ctx = canvas.getContext("2d"); ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-    if (!points.length) return;
-    ctx.lineWidth = Math.max(4, canvas.width / 200); ctx.strokeStyle = "#ff2a2a"; ctx.lineJoin = "round"; ctx.lineCap = "round";
-    ctx.beginPath(); points.forEach(([x, y], i) => { const px = x * canvas.width, py = y * canvas.height; i ? ctx.lineTo(px, py) : ctx.moveTo(px, py); }); ctx.stroke();
-    ctx.fillStyle = "#ff2a2a"; points.forEach(([x, y]) => { ctx.beginPath(); ctx.arc(x * canvas.width, y * canvas.height, ctx.lineWidth, 0, 7); ctx.fill(); });
-  }
-  async function downscale(url) {   // keep uploads small: longest side 1024 px, JPEG
-    const im = await new Promise((r) => { const i = new Image(); i.onload = () => r(i); i.src = url; });
-    const s = Math.min(1, 1024 / Math.max(im.width, im.height));
-    const c = document.createElement("canvas"); c.width = Math.round(im.width * s); c.height = Math.round(im.height * s);
-    c.getContext("2d").drawImage(im, 0, 0, c.width, c.height);
-    return c.toDataURL("image/jpeg", 0.9);
-  }
-  go.addEventListener("click", async () => {
-    if (!dataUrl) { status.textContent = "Pick a photo first."; return; }
-    if (!task.value.trim()) { status.textContent = "Write an instruction."; return; }
-    go.disabled = true; raw.textContent = ""; status.textContent = "Running on the GPU... (3-4 minutes if it has to start, otherwise about 15 seconds)";
-    const t0 = Date.now();
-    try {
-      const body = JSON.stringify({ image: await downscale(dataUrl), task: task.value.trim() });
-      const res = await fetch(ENDPOINT, { method: "POST", headers: { "Content-Type": "application/json" }, body });
-      const out = await res.json();
-      if (!res.ok || out.error) { status.textContent = out.error || ("Error " + res.status); }
-      else { draw(out.points); status.textContent = `Done in ${((Date.now() - t0) / 1000).toFixed(1)} s. ${out.points.length} points. ${out.remaining_today} tries left today.`; raw.textContent = "Model output: " + out.raw; }
-    } catch (e) { status.textContent = "The request failed: " + e; }
-    go.disabled = false;
+  const start = sample.paths[0][0];
+  const s = document.createElementNS(NS, "circle");
+  s.setAttribute("cx", start[0]); s.setAttribute("cy", Math.min(start[1], 1010)); s.setAttribute("r", stroke * 1.2);
+  s.setAttribute("fill", "#ffffff"); s.setAttribute("stroke", "var(--path)"); s.setAttribute("stroke-width", 4);
+  svg.append(s);
+  box.append(svg);
+  return box;
+}
+
+function tags(sample) {
+  const wrap = el("div", { class: "tags" });
+  wrap.append(el("span", { class: "tag type" }, sample.type));
+  wrap.append(el("span", { class: "tag" }, PLACE[sample.variant] || sample.variant));
+  wrap.append(el("span", { class: "tag" }, LIGHT[sample.lighting] || sample.lighting));
+  if (sample.paths.length > 1) wrap.append(el("span", { class: "tag" }, "Two routes"));
+  return wrap;
+}
+
+// Featured scene: two valid routes (stairs or ramp) in a neighborhood, falling back to the first sample.
+const featured = SAMPLES.find(s => s.world === 3 && s.variant === "campus_slope") || SAMPLES[0];
+const feature = document.getElementById("feature");
+feature.append(sceneNode(featured, { animate: true, stroke: 8 }));
+const cap = el("figcaption", { class: "feature-cap" });
+cap.append(el("span", { class: "task" }, "“" + featured.task + "”"));
+cap.append(el("span", { class: "meta" }, (PLACE[featured.variant] || "") + " · " + (WORLD[featured.world] || "")));
+feature.append(cap);
+
+// Gallery
+const grid = document.getElementById("grid");
+const empty = document.getElementById("empty");
+const filtersBox = document.getElementById("filters");
+let current = [];
+let active = 0;
+try { active = Number(localStorage.getItem("tracely-filter")) || 0; } catch (e) { active = 0; }
+if (!(active >= 0 && active < FILTERS.length)) active = 0;
+
+function renderGrid() {
+  current = SAMPLES.filter(FILTERS[active][1]);
+  grid.replaceChildren();
+  current.forEach((sample, i) => {
+    const card = el("button", { class: "card", type: "button", "aria-label": "Open scene: " + sample.task });
+    card.append(sceneNode(sample, { stroke: 9 }));
+    const body = el("div", { class: "body" });
+    body.append(el("div", { class: "task" }, sample.task), tags(sample));
+    card.append(body);
+    card.addEventListener("click", () => openViewer(i));
+    grid.append(card);
   });
+  empty.hidden = current.length > 0;
+  [...filtersBox.children].forEach((chip, i) => chip.setAttribute("aria-pressed", String(i === active)));
+}
+FILTERS.forEach(([label], i) => {
+  const chip = el("button", { class: "chip", type: "button", "aria-pressed": "false" }, label);
+  chip.addEventListener("click", () => {
+    active = i;
+    try { localStorage.setItem("tracely-filter", String(i)); } catch (e) { /* storage unavailable */ }
+    renderGrid();
+  });
+  filtersBox.append(chip);
+});
+renderGrid();
+
+// Viewer
+const viewer = document.getElementById("viewer");
+const pathToggle = document.getElementById("v-path");
+let index = 0;
+function openViewer(i) {
+  index = i;
+  fillViewer();
+  if (!viewer.open) viewer.showModal();
+}
+function fillViewer() {
+  const sample = current[index];
+  const scene = sceneNode(sample, { stroke: 7 });
+  scene.id = "v-scene";
+  scene.classList.toggle("hide-path", !pathToggle.checked);
+  document.getElementById("v-scene").replaceWith(scene);
+  document.getElementById("v-task").textContent = sample.task;
+  document.getElementById("v-type").textContent = sample.type;
+  document.getElementById("v-place").textContent = PLACE[sample.variant] || sample.variant;
+  document.getElementById("v-light").textContent = LIGHT[sample.lighting] || sample.lighting;
+  document.getElementById("v-split").textContent = WORLD[sample.world] || sample.split;
+  document.getElementById("v-ctx").textContent = sample.context;
+  const cats = document.getElementById("v-cats");
+  cats.replaceChildren(...sample.category.map(c => el("span", { class: "tag" }, c)));
+  const legend = document.getElementById("v-legend");
+  legend.replaceChildren();
+  const item = (color, text) => {
+    const span = el("span");
+    const sw = el("i", { class: "swatch" });
+    sw.style.background = color;
+    span.append(sw, document.createTextNode(text));
+    return span;
+  };
+  if (sample.paths.length > 1) {
+    legend.append(item("var(--path)", "Route by the stairs"), item("var(--path-2)", "Route by the ramp"));
+  } else {
+    legend.append(item("var(--path)", "Walking path (" + sample.paths[0].length + " points)"));
+  }
+}
+document.getElementById("v-prev").addEventListener("click", () => { index = (index - 1 + current.length) % current.length; fillViewer(); });
+document.getElementById("v-next").addEventListener("click", () => { index = (index + 1) % current.length; fillViewer(); });
+document.getElementById("v-close").addEventListener("click", () => viewer.close());
+pathToggle.addEventListener("change", () => document.getElementById("v-scene").classList.toggle("hide-path", !pathToggle.checked));
+viewer.addEventListener("click", e => { if (e.target === viewer) viewer.close(); });
+viewer.addEventListener("keydown", e => {
+  if (e.key === "ArrowRight") document.getElementById("v-next").click();
+  if (e.key === "ArrowLeft") document.getElementById("v-prev").click();
+});
+
+// Copy snippets
+document.querySelectorAll(".copy").forEach(button => button.addEventListener("click", async () => {
+  const code = document.getElementById(button.dataset.for);
+  try { await navigator.clipboard.writeText(code.textContent); button.textContent = "Copied"; }
+  catch (e) { const range = document.createRange(); range.selectNodeContents(code); const sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(range); button.textContent = "Selected"; }
+  setTimeout(() => { button.textContent = "Copy"; }, 1600);
+}));
+
+// Try it: send the photo and task to the Tracely endpoint, draw the returned path.
+const ENDPOINT = "https://ahed-mousa1--tracely-demo-trace.us-east.modal.run/";
+const tfile = document.getElementById("file"), ttask = document.getElementById("task"), tgo = document.getElementById("go");
+const tstatus = document.getElementById("status"), tscene = document.getElementById("tscene"), timg = document.getElementById("timg"), tcanvas = document.getElementById("tcanvas");
+const traw = document.getElementById("raw");
+let photo = null;
+tfile.addEventListener("change", () => {
+  const f = tfile.files[0]; if (!f) return;
+  const reader = new FileReader();
+  reader.onload = () => { photo = new Image(); photo.onload = () => { showPhoto([]); tstatus.textContent = "Ready. Write the instruction and press Draw the path."; }; photo.src = reader.result; };
+  reader.readAsDataURL(f);
+});
+function showPhoto(points) {
+  timg.src = photo.src; tscene.classList.add("show"); tscene.style.aspectRatio = photo.width + " / " + photo.height;
+  tcanvas.width = photo.width; tcanvas.height = photo.height;
+  const ctx = tcanvas.getContext("2d"); ctx.clearRect(0, 0, tcanvas.width, tcanvas.height);
+  if (!points.length) return;
+  const w = Math.max(5, tcanvas.width / 180);
+  ctx.lineJoin = "round"; ctx.lineCap = "round";
+  for (const [color, width] of [["rgba(0,0,0,0.35)", w + 6], ["#ff3b30", w]]) {
+    ctx.strokeStyle = color; ctx.lineWidth = width; ctx.beginPath();
+    points.forEach(([x, y], i) => { const px = x * tcanvas.width, py = y * tcanvas.height; i ? ctx.lineTo(px, py) : ctx.moveTo(px, py); });
+    ctx.stroke();
+  }
+  const [ex, ey] = points[points.length - 1];
+  ctx.fillStyle = "#ff3b30"; ctx.strokeStyle = "#fff"; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(ex * tcanvas.width, ey * tcanvas.height, w * 1.3, 0, 7); ctx.fill(); ctx.stroke();
+}
+async function downscale(img) {
+  const s = Math.min(1, 1024 / Math.max(img.width, img.height));
+  const c = document.createElement("canvas"); c.width = Math.round(img.width * s); c.height = Math.round(img.height * s);
+  c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+  return c.toDataURL("image/jpeg", 0.9);
+}
+tgo.addEventListener("click", async () => {
+  if (!photo) { tstatus.textContent = "Choose a photo first."; return; }
+  if (!ttask.value.trim()) { tstatus.textContent = "Write an instruction."; return; }
+  tgo.disabled = true; traw.textContent = ""; tstatus.textContent = "Running on the GPU... 3-4 minutes if it has to start, otherwise about 15 seconds.";
+  const t0 = Date.now();
+  try {
+    const res = await fetch(ENDPOINT, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ image: await downscale(photo), task: ttask.value.trim() }) });
+    const started = await res.json();
+    if (!res.ok || started.error) { tstatus.textContent = started.error || ("Error " + res.status); tgo.disabled = false; return; }
+    let out = null;
+    while (!out) {
+      await new Promise(r => setTimeout(r, 4000));
+      const secs = Math.round((Date.now() - t0) / 1000);
+      tstatus.textContent = "Running on the GPU... " + secs + " s. " + (secs > 40 ? "The GPU is starting up and loading the model; this can take 3-4 minutes." : "");
+      const poll = await fetch(ENDPOINT + "result?id=" + encodeURIComponent(started.id));
+      if (poll.status === 202) continue;
+      out = await poll.json();
+      if (!poll.ok || out.error) { tstatus.textContent = out.error || ("Error " + poll.status); tgo.disabled = false; return; }
+    }
+    showPhoto(out.points);
+    tstatus.textContent = "Done in " + Math.round((Date.now() - t0) / 1000) + " s. " + out.points.length + " points. " + out.remaining_today + " tries left today.";
+    traw.textContent = "Model output: " + out.raw;
+  } catch (e) { tstatus.textContent = "The request failed: " + e; }
+  tgo.disabled = false;
+});
+
 </script>
 </body>
 </html>

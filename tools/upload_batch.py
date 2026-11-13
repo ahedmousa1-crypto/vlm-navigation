@@ -226,7 +226,7 @@ Synthetic first-person street images with ground-truth navigation traces for
 the **Human** embodiment, in the format of
 [NaviTrace](https://huggingface.co/datasets/leggedrobotics/navitrace).
 Rendered in Blender from a procedural town; code:
-https://github.com/ahedmousa1-crypto/vlm-navigation
+https://github.com/ahedmousa1-crypto/tracely
 
 ## Contents
 

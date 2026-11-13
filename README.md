@@ -8,7 +8,7 @@ up from -28.3 before training and above every published model on the Human tasks
 
 | | Link |
 |---|---|
-| Project page and live demo | https://ahedmousa1-crypto.github.io/vlm-navigation |
+| Project page and live demo | https://ahedmousa1-crypto.github.io/tracely |
 | Model (LoRA adapter for Qwen3-VL-8B) | https://huggingface.co/ahd03/tracely |
 | Dataset (10,220 samples, CC BY 4.0) | https://huggingface.co/datasets/ahd03/vln-synthetic-streets |
 
