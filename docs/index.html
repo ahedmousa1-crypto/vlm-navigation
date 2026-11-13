@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tracely</title>
+<meta name="description" content="Tracely: a vision-language model fine-tuned on synthetic street scenes to draw where a person would walk. Dataset, model, results and a live demo.">
+<style>
+  :root { --bg: #ffffff; --fg: #1b1b1f; --muted: #5c5f66; --line: #e3e5e8; --accent: #1f4e9c; --accent-soft: #e8eefb; --card: #f7f8fa; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg: #121317; --fg: #e9eaee; --muted: #a2a6ad; --line: #2b2e34; --accent: #7fa6ff; --accent-soft: #1d2740; --card: #1a1c22; } }
+  :root[data-theme="dark"] { --bg: #121317; --fg: #e9eaee; --muted: #a2a6ad; --line: #2b2e34; --accent: #7fa6ff; --accent-soft: #1d2740; --card: #1a1c22; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 17px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  main { max-width: 900px; margin: 0 auto; padding: 48px 16px 80px; }
+  h1 { font-size: 44px; margin: 0 0 6px; letter-spacing: -0.5px; }
+  .tag { color: var(--muted); font-size: 20px; margin: 0 0 18px; }
+  h2 { font-size: 26px; margin: 48px 0 12px; }
+  p { margin: 0 0 14px; }
+  a { color: var(--accent); }
+  .links a { display: inline-block; margin: 4px 10px 4px 0; padding: 8px 14px; border: 1px solid var(--line); border-radius: 8px; text-decoration: none; background: var(--card); }
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin: 22px 0; }
+  .stat { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 14px; }
+  .stat b { display: block; font-size: 28px; color: var(--accent); }
+  .stat span { color: var(--muted); font-size: 14px; }
+  table { border-collapse: collapse; width: 100%; margin: 12px 0 18px; font-size: 16px; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); }
+  td.n, th.n { text-align: right; font-variant-numeric: tabular-nums; }
+  tr.ours td { background: var(--accent-soft); font-weight: 600; }
+  figure { margin: 18px 0; }
+  figure img { width: 100%; height: auto; border-radius: 10px; border: 1px solid var(--line); }
+  figcaption { color: var(--muted); font-size: 14px; margin-top: 6px; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  @media (max-width: 640px) { .grid2 { grid-template-columns: 1fr; } h1 { font-size: 34px; } }
+  .demo { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 18px; }
+  .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-bottom: 10px; }
+  input[type=text] { flex: 1 1 260px; padding: 10px 12px; font: inherit; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--fg); }
+  button { padding: 10px 18px; font: inherit; font-weight: 600; border: 0; border-radius: 8px; background: var(--accent); color: #fff; cursor: pointer; }
+  button:disabled { opacity: 0.55; cursor: default; }
+  .status { color: var(--muted); font-size: 15px; min-height: 22px; }
+  canvas { width: 100%; height: auto; border-radius: 10px; border: 1px solid var(--line); display: none; margin-top: 10px; background: #000; }
+  .small { color: var(--muted); font-size: 14px; }
+  footer { margin-top: 60px; color: var(--muted); font-size: 14px; border-top: 1px solid var(--line); padding-top: 16px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Tracely</h1>
+  <p class="tag">A vision-language model that looks at a street photo and draws where a person would walk, trained only on synthetic scenes.</p>
+  <div class="links">
+    <a href="https://huggingface.co/ahd03/tracely">Model</a>
+    <a href="https://huggingface.co/datasets/ahd03/vln-synthetic-streets">Dataset</a>
+    <a href="https://github.com/ahedmousa1-crypto/vlm-navigation">Code</a>
+    <a href="https://arxiv.org/abs/2510.26909">NaviTrace benchmark</a>
+  </div>
+
+  <div class="stats">
+    <div class="stat"><b>36.9</b><span>NaviTrace score (Human). Untrained model: &minus;28.3</span></div>
+    <div class="stat"><b>10,220</b><span>synthetic samples in three worlds</span></div>
+    <div class="stat"><b>5,373</b><span>first-person cameras</span></div>
+    <div class="stat"><b>8B</b><span>Qwen3-VL + a 175 MB LoRA adapter</span></div>
+  </div>
+
+  <h2>Try it</h2>
+  <div class="demo">
+    <p>Upload a first-person street photo, write an instruction, and Tracely draws the walking path. The model runs on a cloud GPU that starts on demand: if nobody has used it in the last few minutes, the first request takes 3-4 minutes while the model loads; after that each request takes about 15 seconds. The demo is limited to 100 requests a day.</p>
+    <div class="row">
+      <input type="file" id="file" accept="image/*">
+    </div>
+    <div class="row">
+      <input type="text" id="task" placeholder="e.g. Go to the bench on the left" value="Go to the bench on the left">
+      <button id="go">Draw the path</button>
+    </div>
+    <div class="status" id="status">Pick a photo to start. Nothing is stored.</div>
+    <canvas id="canvas"></canvas>
+    <p class="small" id="raw"></p>
+  </div>
+
+  <h2>The idea</h2>
+  <p>NaviTrace asks a model to turn an instruction such as <em>"Go to the bench on the left"</em> into a path through a real photo, scored against a path drawn by a human expert. Models are good at describing the scene but poor at this: the best published model scores about 35 out of 100, a human expert 75.</p>
+  <p>Instead of annotating photographs by hand, this project built three towns in Blender with procedural scripts: a streets town, an old town on two levels with people and cafes, and a university campus above a lake. In a 3D scene the walkable surfaces, obstacles and people are known, so the correct path is computed by a route planner and projected into each rendered image exactly. 5,373 cameras gave 10,220 samples with no manual labels.</p>
+  <div class="grid2">
+    <figure><img src="img/w3_overview.jpg" alt="Top-down view of the campus world"><figcaption>World 3, the campus and waterfront, from above.</figcaption></figure>
+    <figure><img src="img/w3_example.jpg" alt="A rendered campus scene with the walking path drawn in red"><figcaption>"Go to the person in the red sweater on the left": the path keeps to the pavement around the lawn.</figcaption></figure>
+  </div>
+
+  <h2>Results</h2>
+  <p>Qwen3-VL-8B was fine-tuned with LoRA on the synthetic data in three rounds, one per world. Scores are on the 500 Human scenarios of the NaviTrace validation split with the official scoring code: 0 means walking straight ahead, 100 means matching the expert.</p>
+  <table>
+    <tr><th>Category</th><th class="n">Untrained</th><th class="n">World 1</th><th class="n">Worlds 1+2</th><th class="n">Tracely (1+2+3)</th></tr>
+    <tr class="ours"><td>Overall</td><td class="n">&minus;28.3</td><td class="n">26.0</td><td class="n">28.3</td><td class="n">36.9</td></tr>
+    <tr><td>Dynamic Obstacle</td><td class="n">&minus;25.0</td><td class="n">31.2</td><td class="n">41.4</td><td class="n">50.5</td></tr>
+    <tr><td>Stationary Obstacle</td><td class="n">&minus;23.7</td><td class="n">28.6</td><td class="n">32.1</td><td class="n">41.1</td></tr>
+    <tr><td>Semantic Terrain</td><td class="n">&minus;24.0</td><td class="n">26.3</td><td class="n">26.8</td><td class="n">39.7</td></tr>
+    <tr><td>Geometric Terrain</td><td class="n">&minus;27.8</td><td class="n">25.1</td><td class="n">26.9</td><td class="n">36.1</td></tr>
+    <tr><td>Accessibility</td><td class="n">&minus;34.1</td><td class="n">24.4</td><td class="n">25.7</td><td class="n">32.8</td></tr>
+    <tr><td>Visibility</td><td class="n">&minus;27.6</td><td class="n">24.1</td><td class="n">24.8</td><td class="n">30.3</td></tr>
+    <tr><td>Social Norms</td><td class="n">&minus;59.8</td><td class="n">10.5</td><td class="n">15.7</td><td class="n">24.1</td></tr>
+  </table>
+  <p>For comparison, the Human-only means of published models on the NaviTrace leaderboard: human expert 75.5, Gemini 2.5 Pro 35.4, GPT-5 21.1, Qwen3-VL-235B Thinking 19.3, o3 17.8. Tracely is measured on the validation split and has not been submitted to the leaderboard, so the comparison is indicative.</p>
+  <figure><img src="img/real_examples.jpg" alt="Four real NaviTrace photos with the expert path in green and Tracely's path in red"><figcaption>Tracely on real NaviTrace photos: expert path in green, Tracely in red, score in the corner. Bottom right is a failure: the wrong goal.</figcaption></figure>
+
+  <h2>What was learned</h2>
+  <p>Synthetic data transfers to real photographs: a model that never saw a real walking path gained 65 points. Each world helped most in the situations it was built to add: people and queues raised Dynamic Obstacle and Social Norms; lawns, water, bike lanes and stairs raised Semantic and Geometric Terrain. And variety beat volume: the third world, with new zones and a photographic look, gave almost four times the gain of the second.</p>
+
+  <footer>
+    Ahed Mousa, 2026. Dataset CC BY 4.0, model adapter Apache 2.0, code MIT. Built with Blender, Qwen3-VL, PEFT and Modal. Benchmark: Windecker et al., NaviTrace (2025).
+  </footer>
+</main>
+<script>
+  const ENDPOINT = "https://ahed-mousa1--tracely-demo-trace.us-east.modal.run";
+  const file = document.getElementById("file"), task = document.getElementById("task"), go = document.getElementById("go");
+  const status = document.getElementById("status"), canvas = document.getElementById("canvas"), raw = document.getElementById("raw");
+  let img = null, dataUrl = null;
+  file.addEventListener("change", () => {
+    const f = file.files[0]; if (!f) return;
+    const reader = new FileReader();
+    reader.onload = () => { dataUrl = reader.result; img = new Image(); img.onload = () => { draw([]); status.textContent = "Ready. Write the instruction and press the button."; }; img.src = dataUrl; };
+    reader.readAsDataURL(f);
+  });
+  function draw(points) {
+    if (!img) return;
+    const maxW = 1200, s = Math.min(1, maxW / img.width);
+    canvas.width = Math.round(img.width * s); canvas.height = Math.round(img.height * s); canvas.style.display = "block";
+    const ctx = canvas.getContext("2d"); ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+    if (!points.length) return;
+    ctx.lineWidth = Math.max(4, canvas.width / 200); ctx.strokeStyle = "#ff2a2a"; ctx.lineJoin = "round"; ctx.lineCap = "round";
+    ctx.beginPath(); points.forEach(([x, y], i) => { const px = x * canvas.width, py = y * canvas.height; i ? ctx.lineTo(px, py) : ctx.moveTo(px, py); }); ctx.stroke();
+    ctx.fillStyle = "#ff2a2a"; points.forEach(([x, y]) => { ctx.beginPath(); ctx.arc(x * canvas.width, y * canvas.height, ctx.lineWidth, 0, 7); ctx.fill(); });
+  }
+  async function downscale(url) {   // keep uploads small: longest side 1024 px, JPEG
+    const im = await new Promise((r) => { const i = new Image(); i.onload = () => r(i); i.src = url; });
+    const s = Math.min(1, 1024 / Math.max(im.width, im.height));
+    const c = document.createElement("canvas"); c.width = Math.round(im.width * s); c.height = Math.round(im.height * s);
+    c.getContext("2d").drawImage(im, 0, 0, c.width, c.height);
+    return c.toDataURL("image/jpeg", 0.9);
+  }
+  go.addEventListener("click", async () => {
+    if (!dataUrl) { status.textContent = "Pick a photo first."; return; }
+    if (!task.value.trim()) { status.textContent = "Write an instruction."; return; }
+    go.disabled = true; raw.textContent = ""; status.textContent = "Running on the GPU... (3-4 minutes if it has to start, otherwise about 15 seconds)";
+    const t0 = Date.now();
+    try {
+      const body = JSON.stringify({ image: await downscale(dataUrl), task: task.value.trim() });
+      const res = await fetch(ENDPOINT, { method: "POST", headers: { "Content-Type": "application/json" }, body });
+      const out = await res.json();
+      if (!res.ok || out.error) { status.textContent = out.error || ("Error " + res.status); }
+      else { draw(out.points); status.textContent = `Done in ${((Date.now() - t0) / 1000).toFixed(1)} s. ${out.points.length} points. ${out.remaining_today} tries left today.`; raw.textContent = "Model output: " + out.raw; }
+    } catch (e) { status.textContent = "The request failed: " + e; }
+    go.disabled = false;
+  });
+</script>
+</body>
+</html>
