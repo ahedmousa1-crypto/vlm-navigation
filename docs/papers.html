@@ -33,7 +33,7 @@ h1, h2, h3 { font-family: var(--pixel); font-weight: 400; margin: 0; letter-spac
 p { margin: 0 0 12px; }
 :focus-visible { outline: 3px dashed var(--slip-yellow); outline-offset: 3px; }
 
-/* Booth sign */
+/* Top strip */
 nav.top { position: sticky; top: 0; z-index: 20; background: #15140f; border-bottom: 4px solid #0c0b08; box-shadow: 0 6px 0 rgba(0,0,0,0.25); }
 nav.top .wrap { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 52px; flex-wrap: wrap; }
 .brand { font-family: var(--pixel); font-size: 30px; color: var(--paper-3); text-decoration: none; letter-spacing: 0.12em; }
@@ -127,7 +127,7 @@ nav.top .wrap { display: flex; align-items: center; justify-content: space-betwe
 .deskhead h2 { font-size: clamp(40px, 6vw, 64px); color: var(--paper-3); text-shadow: 3px 3px 0 #0c0b08; }
 .deskhead p { color: #a59c82; max-width: 520px; margin: 0; font-size: 15px; }
 
-/* Permits (gallery) */
+/* Scene cards (gallery) */
 .filters { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 22px; }
 .chip { font-family: var(--pixel); font-size: 20px; letter-spacing: 0.06em; text-transform: uppercase; border: 0; cursor: pointer; padding: 4px 12px 1px; background: var(--paper-2); color: var(--ink); border-bottom: 3px solid #8d8468; }
 .chip[aria-pressed="true"] { background: var(--red); color: #f3e9d2; border-bottom-color: #5d1a15; }
@@ -137,7 +137,7 @@ nav.top .wrap { display: flex; align-items: center; justify-content: space-betwe
 .card { counter-increment: permit; display: flex; flex-direction: column; text-align: left; font: inherit; color: var(--ink); cursor: pointer; border: 0; padding: 10px 10px 0; background: var(--paper); box-shadow: 3px 4px 0 rgba(0,0,0,0.35), 8px 12px 18px rgba(0,0,0,0.3); transition: transform 0.12s steps(3); }
 .card:nth-child(3n+1) { transform: rotate(-0.8deg); } .card:nth-child(3n+2) { transform: rotate(0.6deg); background: var(--paper-3); } .card:nth-child(3n) { transform: rotate(-0.3deg); background: var(--paper-2); }
 .card:hover { transform: rotate(0deg) translateY(-6px); }
-.card::before { content: "ROUTE PERMIT  No. " counter(permit, decimal-leading-zero); white-space: pre; font-family: var(--pixel); font-size: 19px; letter-spacing: 0.08em; padding: 0 2px 6px; border-bottom: 2px solid var(--ink); margin-bottom: 8px; }
+.card::before { content: "SCENE CARD  No. " counter(permit, decimal-leading-zero); white-space: pre; font-family: var(--pixel); font-size: 19px; letter-spacing: 0.08em; padding: 0 2px 6px; border-bottom: 2px solid var(--ink); margin-bottom: 8px; }
 .card .body { padding: 10px 2px 12px; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
 .card .task { font-family: var(--pixel); font-size: 23px; line-height: 1.02; }
 .tags { display: flex; gap: 6px; flex-wrap: wrap; }
@@ -145,7 +145,7 @@ nav.top .wrap { display: flex; align-items: center; justify-content: space-betwe
 .tag.type { border-color: var(--red); color: var(--red); }
 .empty { color: #a59c82; padding: 30px 0; }
 
-/* Inspection view (viewer) */
+/* Scene viewer */
 dialog.viewer { border: 0; padding: 14px 14px 0; background: var(--paper-3); color: var(--ink); width: min(980px, calc(100% - 24px)); max-height: calc(100% - 24px); overflow: auto; box-shadow: 6px 8px 0 rgba(0,0,0,0.5); }
 dialog.viewer::backdrop { background: rgba(10, 9, 7, 0.78); }
 .viewer .bar { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding-bottom: 10px; }
@@ -165,7 +165,7 @@ dialog.viewer::backdrop { background: rgba(10, 9, 7, 0.78); }
 .swatch { width: 20px; height: 5px; display: inline-block; }
 @media (max-width: 560px) { .viewer dl { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 
-/* Audit (results) */
+/* Results */
 .audit { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 30px; align-items: start; }
 @media (max-width: 900px) { .audit { grid-template-columns: 1fr; } }
 .ledger { width: 100%; border-collapse: collapse; font-size: 15px; }
@@ -188,7 +188,7 @@ dialog.viewer::backdrop { background: rgba(10, 9, 7, 0.78); }
 .evidence figcaption { padding: 10px 2px 12px; font-size: 13px; }
 .notes { display: flex; gap: 22px; flex-wrap: wrap; margin-top: 26px; align-items: flex-start; }
 
-/* Booth (try it) */
+/* Try it */
 .booth { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 300px); gap: 30px; align-items: start; }
 @media (max-width: 860px) { .booth { grid-template-columns: 1fr; } }
 .try .row { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; margin-bottom: 14px; }
@@ -201,7 +201,7 @@ dialog.viewer::backdrop { background: rgba(10, 9, 7, 0.78); }
 .try .scene canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
 .try .raw { font-size: 12px; color: var(--ink-soft); overflow-wrap: anywhere; margin: 10px 0 0; }
 
-/* Issued documents */
+/* Dataset and model */
 .code { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 12px 0; padding: 8px 10px 6px; background: #1b1a17; color: #d6e2c0; font-family: var(--pixel); font-size: 20px; min-width: 0; }
 .code code { overflow-x: auto; white-space: nowrap; min-width: 0; font-family: inherit; }
 .copy { font-family: var(--pixel); font-size: 18px; text-transform: uppercase; border: 2px solid #d6e2c0; background: transparent; color: #d6e2c0; cursor: pointer; padding: 1px 8px 0; flex: none; }
@@ -219,9 +219,9 @@ footer p { margin: 0 0 4px; }
 
 <nav class="top" aria-label="Main">
   <div class="wrap">
-    <a class="brand" href="#top">TRACELY<small>ROUTE INSPECTION DESK</small></a>
+    <a class="brand" href="#top">TRACELY<small>PROJECT NOTEBOOK</small></a>
     <div class="tabs">
-      <a href="#overview">01 Brief</a><a href="#how">02 Rules</a><a href="#explore">03 Permits</a><a href="#results">04 Audit</a><a href="#try">05 Booth</a><a href="#dataset">06 Issue</a>
+      <a href="#overview">01 Idea</a><a href="#how">02 Method</a><a href="#explore">03 Scenes</a><a href="#results">04 Results</a><a href="#try">05 Try it</a><a href="#dataset">06 Get it</a>
     </div>
   </div>
 </nav>
@@ -229,16 +229,16 @@ footer p { margin: 0 0 4px; }
 <header class="hero" id="top">
   <div class="wrap herogrid">
     <div class="paper light clip" style="--r:-1.2deg">
-      <div class="formhead"><span>Form T-1 · Standing order</span><span>File 2026-11</span></div>
-      <h1>Teach the machine to find its way through a city.</h1>
-      <p class="sub">Tracely is shown one street photo and one instruction. It must draw the path a person would walk. It learned from 10,220 scenes built in 3D and labeled by geometry, and it now beats every published model on the NaviTrace benchmark.</p>
+      <div class="formhead"><span>Project note · Summary</span><span>Nov 2026</span></div>
+      <h1>Teaching AI to find its way through a city.</h1>
+      <p class="sub">Tracely looks at one street photo and one instruction, and draws the path a person would walk. It learned from 10,220 scenes built in 3D and labeled by geometry, and it now beats every published model on the NaviTrace benchmark.</p>
       <div class="ctas">
-        <a class="btn primary" href="#try">Open the booth</a>
-        <a class="btn ghost" href="#explore">Inspect permits</a>
+        <a class="btn primary" href="#try">Try it yourself</a>
+        <a class="btn ghost" href="#explore">Browse the scenes</a>
       </div>
     </div>
     <div class="photo tape">
-      <span class="stamp abs" data-stamp style="right:18px; top:20px; --sr:9deg">Route approved</span>
+      <span class="stamp abs" data-stamp style="right:18px; top:20px; --sr:9deg">Path found</span>
       <figure class="feature" id="feature"></figure>
     </div>
   </div>
@@ -255,15 +255,15 @@ footer p { margin: 0 0 4px; }
 
 <section id="overview">
   <div class="wrap">
-    <div class="deskhead"><h2>01 Brief</h2><p>Models can describe a street. Drawing a sensible walking route through it is much harder.</p></div>
+    <div class="deskhead"><h2>01 Idea</h2><p>Models can describe a street. Drawing a sensible walking route through it is much harder.</p></div>
     <div class="two">
       <div class="paper" style="--r:-0.8deg">
-        <div class="formhead"><span>Bulletin</span><span>The problem</span></div>
+        <div class="formhead"><span>Note 1</span><span>The problem</span></div>
         <h3>They cannot find the door.</h3>
         <p>The NaviTrace benchmark hands a model a real photo and an instruction, and scores the path it draws against a human expert's. Leading models fall far short of people. They fail to <b>locate the goal</b> and to <b>ground space</b>: where the sidewalk is, which way the crosswalk goes, what stands in the way.</p>
       </div>
       <div class="paper alt" style="--r:0.9deg">
-        <div class="formhead"><span>Directive</span><span>Our approach</span></div>
+        <div class="formhead"><span>Note 2</span><span>Our approach</span></div>
         <h3>Build the city. Compute the walk.</h3>
         <p>Hand-drawn paths are slow and costly. So we build towns in 3D, stand a camera at eye height, and <b>compute</b> the route from the scene itself. Every path is exact by construction. An open 8B model trained on these scenes alone went from worse-than-walking-straight to <b>first among published models</b> on real photos.</p>
         <span class="stamp blue abs" data-stamp style="right:16px; bottom:10px; --sr:-6deg; font-size:22px">No hand labels</span>
@@ -274,9 +274,9 @@ footer p { margin: 0 0 4px; }
 
 <section id="how">
   <div class="wrap">
-    <div class="deskhead"><h2>02 Rules</h2><p>Four steps turn a procedural town into training data.</p></div>
+    <div class="deskhead"><h2>02 Method</h2><p>Four steps turn a procedural town into training data.</p></div>
     <div class="paper light plain" style="--r:0.3deg">
-      <div class="formhead"><span>Rule book · Scene production</span><span>Page 1 of 1</span></div>
+      <div class="formhead"><span>How a scene is made</span><span>4 steps</span></div>
       <div class="rules">
         <div class="rule"><div class="n">1</div><h3>Build a world</h3><p>A streets town, an old town on two levels with people and cafes, a campus above a lake. Every surface is tagged.</p></div>
         <div class="rule"><div class="n">2</div><h3>Place a camera</h3><p>At eye height on a sidewalk, square or park path, looking where a pedestrian would. 5,373 cameras.</p></div>
@@ -289,19 +289,19 @@ footer p { margin: 0 0 4px; }
 
 <section id="explore">
   <div class="wrap">
-    <div class="deskhead"><h2>03 Permits</h2><p>A sample from the three worlds. Pick up any permit to see the task, its labels and the approved route.</p></div>
+    <div class="deskhead"><h2>03 Scenes</h2><p>A sample from the three worlds. Pick up any card to see the task, its labels and the path a person would take.</p></div>
     <div class="filters" role="group" aria-label="Filter scenes" id="filters"></div>
     <div class="grid" id="grid"></div>
-    <p class="empty" id="empty" hidden>No permits match this filter.</p>
+    <p class="empty" id="empty" hidden>No scenes match this filter.</p>
   </div>
 </section>
 
 <section id="results">
   <div class="wrap">
-    <div class="deskhead"><h2>04 Audit</h2><p>Trained on renders. Tested on photos. 500 Human scenarios of the NaviTrace validation split, official scoring code.</p></div>
+    <div class="deskhead"><h2>04 Results</h2><p>Trained on renders. Tested on photos. 500 Human scenarios of the NaviTrace validation split, official scoring code.</p></div>
     <div class="audit">
       <div class="paper light plain" style="--r:-0.5deg">
-        <div class="formhead"><span>Audit sheet · Score by category</span><span>Qwen3-VL-8B + LoRA</span></div>
+        <div class="formhead"><span>Score sheet · By category</span><span>Qwen3-VL-8B + LoRA</span></div>
         <div class="scroll"><table class="ledger">
           <tr><th>Category</th><th class="n">Untrained</th><th class="n">World 1</th><th class="n">Worlds 1+2</th><th class="n">Tracely</th></tr>
           <tr class="ours"><td>Overall</td><td class="n">−28.3</td><td class="n">26.0</td><td class="n">28.3</td><td class="n">36.9</td></tr>
@@ -316,7 +316,7 @@ footer p { margin: 0 0 4px; }
       </div>
       <div class="ids">
         <div class="id"><span class="rank">No. 1</span><span class="who">Human expert<small>the ceiling</small></span><span class="v">75.5</span></div>
-        <div class="id ours"><span class="rank">No. 2</span><span class="who">Tracely<small>8B, trained on renders only</small></span><span class="v">36.9</span><span class="stamp abs" data-stamp>Cleared</span></div>
+        <div class="id ours"><span class="rank">No. 2</span><span class="who">Tracely<small>8B, trained on renders only</small></span><span class="v">36.9</span><span class="stamp abs" data-stamp>Ours</span></div>
         <div class="id"><span class="rank">No. 3</span><span class="who">Gemini 2.5 Pro<small>best published model</small></span><span class="v">35.4</span></div>
         <div class="id"><span class="rank">No. 4</span><span class="who">GPT-5</span><span class="v">21.1</span></div>
         <div class="id"><span class="rank">No. 5</span><span class="who">Qwen3-VL 235B<small>same family, 30x the size</small></span><span class="v">19.3</span></div>
@@ -329,28 +329,28 @@ footer p { margin: 0 0 4px; }
     </div>
     <figure class="evidence tape" style="margin-top:44px">
       <img src="img/real_examples.jpg" alt="Four real NaviTrace photos with the expert path in green and Tracely's path in red" loading="lazy">
-      <figcaption><b>Exhibit A.</b> Real NaviTrace photos Tracely never saw. Expert path in green, Tracely in red, score in the corner. Bottom right is a miss: the wrong bus stop.</figcaption>
+      <figcaption><b>Figure.</b> Real NaviTrace photos Tracely never saw. Expert path in green, Tracely in red, score in the corner. Bottom right is a miss: the wrong bus stop.</figcaption>
     </figure>
   </div>
 </section>
 
 <section id="try">
   <div class="wrap">
-    <div class="deskhead"><h2>05 Booth</h2><p>Hand over a first-person street photo and an order. Tracely draws the walk.</p></div>
+    <div class="deskhead"><h2>05 Try it</h2><p>Upload a first-person street photo and write an instruction. Tracely draws the walk.</p></div>
     <div class="booth">
       <div class="paper light plain try" style="--r:-0.4deg">
-        <div class="formhead"><span>Form T-5 · Route request</span><span>Fill in both fields</span></div>
+        <div class="formhead"><span>Try Tracely</span><span>Two things needed</span></div>
         <div class="row">
           <span class="lbl">1. Photo</span>
-          <label class="btn ghost" for="file">Present document</label>
+          <label class="btn ghost" for="file">Choose a photo</label>
           <input type="file" id="file" accept="image/*">
         </div>
         <div class="row">
-          <span class="lbl">2. Order</span>
+          <span class="lbl">2. Instruction</span>
           <input type="text" id="task" value="Go to the bench on the left" placeholder="e.g. Go to the bench on the left" aria-label="Instruction">
         </div>
         <div class="row">
-          <button class="btn primary" id="go" type="button">Trace route</button>
+          <button class="btn primary" id="go" type="button">Draw the path</button>
           <span class="status" id="status">Nothing is stored. Photos are resized to 1024 px before upload.</span>
         </div>
         <div class="scene" id="tscene"><img id="timg" alt=""><canvas id="tcanvas"></canvas></div>
@@ -358,7 +358,7 @@ footer p { margin: 0 0 4px; }
       </div>
       <div style="display:grid; gap:22px">
         <div class="note" style="--r:2deg"><b>Wait times</b>The GPU starts on demand. After a quiet spell the first request takes 3-4 minutes. Then about 15 seconds each.</div>
-        <div class="note green" style="--r:-1.5deg"><b>Quota</b>100 requests per day. When they are gone, come back tomorrow.</div>
+        <div class="note green" style="--r:-1.5deg"><b>Daily limit</b>100 requests per day, shared by everyone. If they run out, try again tomorrow.</div>
         <div class="note pink" style="--r:1deg"><b>Tip</b>Stand where a pedestrian would. Name something visible: a door, a bench, a person in a red coat.</div>
       </div>
     </div>
@@ -367,10 +367,10 @@ footer p { margin: 0 0 4px; }
 
 <section id="dataset">
   <div class="wrap">
-    <div class="deskhead"><h2>06 Issue</h2><p>Open data. Open model. Open code. Take what you need.</p></div>
+    <div class="deskhead"><h2>06 Get it</h2><p>Open data. Open model. Open code. Take what you need.</p></div>
     <div class="two">
       <div class="paper" style="--r:-0.7deg">
-        <div class="formhead"><span>Issued · Dataset</span><span>CC BY 4.0</span></div>
+        <div class="formhead"><span>Dataset</span><span>CC BY 4.0</span></div>
         <h3>VLN Synthetic Streets</h3>
         <p>NaviTrace columns: image, task, embodiment, ground-truth path, segmentation mask, categories and metadata.</p>
         <div class="facts">
@@ -382,9 +382,9 @@ footer p { margin: 0 0 4px; }
         <div class="doclinks"><a href="https://huggingface.co/datasets/ahd03/vln-synthetic-streets" target="_blank" rel="noopener">Hugging Face</a></div>
       </div>
       <div class="paper alt" style="--r:0.8deg">
-        <div class="formhead"><span>Issued · Model and pipeline</span><span>Apache 2.0 · MIT</span></div>
+        <div class="formhead"><span>Model and code</span><span>Apache 2.0 · MIT</span></div>
         <h3>Tracely</h3>
-        <p>A 175 MB LoRA adapter for Qwen3-VL-8B-Instruct, trained in three rounds, one per world. The repository holds the Blender scripts that build worlds, place cameras, plan routes and render, plus training, scoring and this booth.</p>
+        <p>A 175 MB LoRA adapter for Qwen3-VL-8B-Instruct, trained in three rounds, one per world. The repository holds the Blender scripts that build worlds, place cameras, plan routes and render, plus training, scoring and this demo.</p>
         <div class="facts">
           <div>LoRA rank <b>16</b> · about <b>4 h</b> on one A100</div>
         </div>
@@ -398,7 +398,7 @@ footer p { margin: 0 0 4px; }
 <footer>
   <div class="wrap">
     <p>Tracely by Ahed Mousa, 2026. Sample format, prompts and categories follow NaviTrace (Windecker et al., 2025).</p>
-    <p>Built with Blender, Qwen3-VL, PEFT and Modal. Poly Haven skies and textures, Quaternius animal meshes (CC0). Paths on permits are drawn for illustration; dataset images are clean.</p>
+    <p>Built with Blender, Qwen3-VL, PEFT and Modal. Poly Haven skies and textures, Quaternius animal meshes (CC0). Paths on the scene cards are drawn for illustration; dataset images are clean.</p>
   </div>
 </footer>
 
@@ -409,7 +409,7 @@ footer p { margin: 0 0 4px; }
       <button class="icon-btn" id="v-next" type="button" aria-label="Next scene">&gt;</button>
     </div>
     <div class="right">
-      <label class="toggle" for="v-path"><input type="checkbox" id="v-path" checked> Show route</label>
+      <label class="toggle" for="v-path"><input type="checkbox" id="v-path" checked> Show path</label>
       <button class="icon-btn" id="v-close" type="button" aria-label="Close">X</button>
     </div>
   </div>
