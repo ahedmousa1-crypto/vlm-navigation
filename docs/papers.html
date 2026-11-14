@@ -248,7 +248,7 @@ footer p { margin: 0 0 4px; }
   <div class="wrap tickets">
     <div class="ticket" style="--r:-1.5deg"><div class="num">36.9</div><div class="lbl">NaviTrace score, was −28.3</div></div>
     <div class="ticket" style="--r:1deg"><div class="num">10,220</div><div class="lbl">labeled scenes</div></div>
-    <div class="ticket" style="--r:-0.6deg"><div class="num">3</div><div class="lbl">worlds, 125 blocks</div></div>
+    <div class="ticket" style="--r:-0.6deg"><div class="num">3</div><div class="lbl">towns, 125 city blocks</div></div>
     <div class="ticket" style="--r:1.4deg"><div class="num">8B</div><div class="lbl">parameters, open model</div></div>
   </div>
 </section>
@@ -278,7 +278,7 @@ footer p { margin: 0 0 4px; }
     <div class="paper light plain" style="--r:0.3deg">
       <div class="formhead"><span>How a scene is made</span><span>4 steps</span></div>
       <div class="rules">
-        <div class="rule"><div class="n">1</div><h3>Build a world</h3><p>A streets town, an old town on two levels with people and cafes, a campus above a lake. Every surface is tagged.</p></div>
+        <div class="rule"><div class="n">1</div><h3>Build a town</h3><p>A streets town, an old town on two levels with people and cafes, a campus above a lake. Every surface is tagged.</p></div>
         <div class="rule"><div class="n">2</div><h3>Place a camera</h3><p>At eye height on a sidewalk, square or park path, looking where a pedestrian would. 5,373 cameras.</p></div>
         <div class="rule"><div class="n">3</div><h3>Plan the walk</h3><p>A* search on a 25 cm map: sidewalks first, roads only at crossings, around groups of people, stairs or ramps where needed.</p></div>
         <div class="rule"><div class="n">4</div><h3>Render and label</h3><p>The image, a per-pixel class mask, the task in plain English, the path in image pixels.</p></div>
@@ -289,7 +289,7 @@ footer p { margin: 0 0 4px; }
 
 <section id="explore">
   <div class="wrap">
-    <div class="deskhead"><h2>03 Scenes</h2><p>A sample from the three worlds. Pick up any card to see the task, its labels and the path a person would take.</p></div>
+    <div class="deskhead"><h2>03 Scenes</h2><p>A sample from the three towns. Pick up any card to see the task, its labels and the path a person would take.</p></div>
     <div class="filters" role="group" aria-label="Filter scenes" id="filters"></div>
     <div class="grid" id="grid"></div>
     <p class="empty" id="empty" hidden>No scenes match this filter.</p>
@@ -303,15 +303,15 @@ footer p { margin: 0 0 4px; }
       <div class="paper light plain" style="--r:-0.5deg">
         <div class="formhead"><span>Score sheet · By category</span><span>Qwen3-VL-8B + LoRA</span></div>
         <div class="scroll"><table class="ledger">
-          <tr><th>Category</th><th class="n">Untrained</th><th class="n">World 1</th><th class="n">Worlds 1+2</th><th class="n">Tracely</th></tr>
-          <tr class="ours"><td>Overall</td><td class="n">−28.3</td><td class="n">26.0</td><td class="n">28.3</td><td class="n">36.9</td></tr>
-          <tr><td>Dynamic Obstacle</td><td class="n">−25.0</td><td class="n">31.2</td><td class="n">41.4</td><td class="n">50.5</td></tr>
-          <tr><td>Stationary Obstacle</td><td class="n">−23.7</td><td class="n">28.6</td><td class="n">32.1</td><td class="n">41.1</td></tr>
-          <tr><td>Semantic Terrain</td><td class="n">−24.0</td><td class="n">26.3</td><td class="n">26.8</td><td class="n">39.7</td></tr>
-          <tr><td>Geometric Terrain</td><td class="n">−27.8</td><td class="n">25.1</td><td class="n">26.9</td><td class="n">36.1</td></tr>
-          <tr><td>Accessibility</td><td class="n">−34.1</td><td class="n">24.4</td><td class="n">25.7</td><td class="n">32.8</td></tr>
-          <tr><td>Visibility</td><td class="n">−27.6</td><td class="n">24.1</td><td class="n">24.8</td><td class="n">30.3</td></tr>
-          <tr><td>Social Norms</td><td class="n">−59.8</td><td class="n">10.5</td><td class="n">15.7</td><td class="n">24.1</td></tr>
+          <tr><th>Category</th><th class="n">Before training</th><th class="n">Gain</th><th class="n">Tracely</th></tr>
+          <tr class="ours"><td>Overall</td><td class="n">−28.3</td><td class="n">+65.2</td><td class="n">36.9</td></tr>
+          <tr><td>Dynamic Obstacle</td><td class="n">−25.0</td><td class="n">+75.5</td><td class="n">50.5</td></tr>
+          <tr><td>Stationary Obstacle</td><td class="n">−23.7</td><td class="n">+64.8</td><td class="n">41.1</td></tr>
+          <tr><td>Semantic Terrain</td><td class="n">−24.0</td><td class="n">+63.7</td><td class="n">39.7</td></tr>
+          <tr><td>Geometric Terrain</td><td class="n">−27.8</td><td class="n">+63.9</td><td class="n">36.1</td></tr>
+          <tr><td>Accessibility</td><td class="n">−34.1</td><td class="n">+66.9</td><td class="n">32.8</td></tr>
+          <tr><td>Visibility</td><td class="n">−27.6</td><td class="n">+57.9</td><td class="n">30.3</td></tr>
+          <tr><td>Social Norms</td><td class="n">−59.8</td><td class="n">+83.9</td><td class="n">24.1</td></tr>
         </table></div>
       </div>
       <div class="ids">
@@ -325,7 +325,7 @@ footer p { margin: 0 0 4px; }
     <div class="notes">
       <div class="note" style="--r:-2deg"><b>Note</b>0 = walking straight ahead. 100 = the expert's path. Below 0 is worse than not thinking at all.</div>
       <div class="note pink" style="--r:1.5deg"><b>Caveat</b>Published scores are Human-only means from the leaderboard's hidden test split. Tracely is scored on the validation split and has not been submitted. Indicative.</div>
-      <div class="note blue" style="--r:-1deg"><b>Finding</b>World 3 added +8.6. World 2 added +2.3. New kinds of scenes beat more of the same.</div>
+      <div class="note blue" style="--r:-1deg"><b>Finding</b>Adding new kinds of places raised the score far more than adding more of the same.</div>
     </div>
     <figure class="evidence tape" style="margin-top:44px">
       <img src="img/real_examples.jpg" alt="Four real NaviTrace photos with the expert path in green and Tracely's path in red" loading="lazy">
@@ -376,7 +376,7 @@ footer p { margin: 0 0 4px; }
         <div class="facts">
           <div><b>8,392</b> training scenes · <b>1,828</b> test scenes, whole blocks held out</div>
           <div>Goal tasks <b>8,718</b> · Directions tasks <b>1,502</b></div>
-          <div><b>3</b> worlds · <b>5</b> lighting conditions</div>
+          <div><b>3</b> towns · <b>5</b> lighting conditions</div>
         </div>
         <div class="code"><code id="snippet">load_dataset("ahd03/vln-synthetic-streets")</code><button class="copy" type="button" data-for="snippet">Copy</button></div>
         <div class="doclinks"><a href="https://huggingface.co/datasets/ahd03/vln-synthetic-streets" target="_blank" rel="noopener">Hugging Face</a></div>
@@ -384,7 +384,7 @@ footer p { margin: 0 0 4px; }
       <div class="paper alt" style="--r:0.8deg">
         <div class="formhead"><span>Model and code</span><span>Apache 2.0 · MIT</span></div>
         <h3>Tracely</h3>
-        <p>A 175 MB LoRA adapter for Qwen3-VL-8B-Instruct, trained in three rounds, one per world. The repository holds the Blender scripts that build worlds, place cameras, plan routes and render, plus training, scoring and this demo.</p>
+        <p>A 175 MB LoRA adapter for Qwen3-VL-8B-Instruct. The repository holds the Blender scripts that build the towns, place cameras, plan routes and render, plus training, scoring and this demo.</p>
         <div class="facts">
           <div>LoRA rank <b>16</b> · about <b>4 h</b> on one A100</div>
         </div>
@@ -421,7 +421,7 @@ footer p { margin: 0 0 4px; }
       <div><dt>Task type</dt><dd id="v-type"></dd></div>
       <div><dt>Place</dt><dd id="v-place"></dd></div>
       <div><dt>Lighting</dt><dd id="v-light"></dd></div>
-      <div><dt>World</dt><dd id="v-split"></dd></div>
+      <div><dt>Town</dt><dd id="v-split"></dd></div>
     </dl>
     <div class="tags" id="v-cats"></div>
     <p class="ctx" id="v-ctx"></p>
@@ -435,7 +435,7 @@ const PLACE = { park: "Park", neighborhood: "Neighborhood", skate: "Skate park",
   old_square: "Old town square", old_upper: "Old town, upper level", old_lower: "Old town, lower level",
   campus_quad: "Campus quad", campus_buildings: "Campus", campus_slope: "Campus slope", waterfront: "Waterfront",
   campus_park: "Park belt", campus_library: "Library", campus_construction: "Construction site", campus_parking: "Car park", campus_sports: "Sports field" };
-const WORLD = { 1: "World 1, streets", 2: "World 2, old town", 3: "World 3, campus" };
+const WORLD = { 1: "Streets town", 2: "Old town", 3: "Campus & waterfront" };
 const LIGHT = { day: "Day", overcast: "Overcast", dusk: "Dusk", night: "Night", moonlight: "Moonlight" };
 const FILTERS = [
   ["All", () => true],
