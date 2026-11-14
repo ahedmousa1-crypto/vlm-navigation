@@ -189,7 +189,7 @@ dialog.viewer::backdrop { background: rgba(10, 9, 7, 0.78); }
 .notes { display: flex; gap: 22px; flex-wrap: wrap; margin-top: 26px; align-items: flex-start; }
 
 /* Try it */
-.booth { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 300px); gap: 30px; align-items: start; }
+.booth { display: block; max-width: 860px; }
 @media (max-width: 860px) { .booth { grid-template-columns: 1fr; } }
 .try .row { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; margin-bottom: 14px; }
 .try input[type="file"] { display: none; }
@@ -231,7 +231,7 @@ footer p { margin: 0 0 4px; }
     <div class="paper light clip" style="--r:-1.2deg">
       <div class="formhead"><span>Project note · Summary</span><span>Nov 2026</span></div>
       <h1>Teaching AI to find its way through a city.</h1>
-      <p class="sub">Tracely looks at one street photo and one instruction, and draws the path a person would walk. It learned from 10,220 scenes built in 3D and labeled by geometry, and it now beats every published model on the NaviTrace benchmark.</p>
+      <p class="sub">This project targets NaviTrace, a benchmark that asks a model to draw the path a person would walk through a street photo. Tracely is an open 8B model trained for that task on 10,220 synthetic scenes only. Its score on real photos rose from −28.3 to 36.9.</p>
       <div class="ctas">
         <a class="btn primary" href="#try">Try it yourself</a>
         <a class="btn ghost" href="#explore">Browse the scenes</a>
@@ -265,7 +265,7 @@ footer p { margin: 0 0 4px; }
       <div class="paper alt" style="--r:0.9deg">
         <div class="formhead"><span>Note 2</span><span>Our approach</span></div>
         <h3>Build the city. Compute the walk.</h3>
-        <p>Hand-drawn paths are slow and costly. So we build towns in 3D, stand a camera at eye height, and <b>compute</b> the route from the scene itself. Every path is exact by construction. An open 8B model trained on these scenes alone went from worse-than-walking-straight to <b>first among published models</b> on real photos.</p>
+        <p>Hand-drawn paths are slow and costly. So we build towns in 3D, stand a camera at eye height, and <b>compute</b> the route from the scene itself. Every path is exact by construction. An open 8B model trained on these scenes alone improved from −28.3 to <b>36.9 on real photos</b>, comparable to the strongest published models and still far from a human expert.</p>
         <span class="stamp blue abs" data-stamp style="right:16px; bottom:10px; --sr:-6deg; font-size:22px">No hand labels</span>
       </div>
     </div>
@@ -280,7 +280,7 @@ footer p { margin: 0 0 4px; }
       <div class="rules">
         <div class="rule"><div class="n">1</div><h3>Build a town</h3><p>Streets, squares, parks, stairs, water, people and cafes, generated in 3D by scripts. Every surface is tagged.</p></div>
         <div class="rule"><div class="n">2</div><h3>Place a camera</h3><p>At eye height on a sidewalk, square or park path, looking where a pedestrian would. 5,373 cameras.</p></div>
-        <div class="rule"><div class="n">3</div><h3>Plan the walk</h3><p>A* search on a 25 cm map: sidewalks first, roads only at crossings, around groups of people, stairs or ramps where needed.</p></div>
+        <div class="rule"><div class="n">3</div><h3>Plan the walk</h3><p>A route planner works out the path a person would take: stay on the sidewalk, cross roads only at crossings, walk around people and obstacles, use stairs or a ramp where needed.</p></div>
         <div class="rule"><div class="n">4</div><h3>Render and label</h3><p>The image, a per-pixel class mask, the task in plain English, the path in image pixels.</p></div>
       </div>
     </div>
@@ -315,17 +315,16 @@ footer p { margin: 0 0 4px; }
         </table></div>
       </div>
       <div class="ids">
-        <div class="id"><span class="rank">No. 1</span><span class="who">Human expert<small>the ceiling</small></span><span class="v">75.5</span></div>
-        <div class="id ours"><span class="rank">No. 2</span><span class="who">Tracely<small>8B, trained on renders only</small></span><span class="v">36.9</span><span class="stamp abs" data-stamp>Ours</span></div>
-        <div class="id"><span class="rank">No. 3</span><span class="who">Gemini 2.5 Pro<small>best published model</small></span><span class="v">35.4</span></div>
-        <div class="id"><span class="rank">No. 4</span><span class="who">GPT-5</span><span class="v">21.1</span></div>
-        <div class="id"><span class="rank">No. 5</span><span class="who">Qwen3-VL 235B<small>same family, 30x the size</small></span><span class="v">19.3</span></div>
+        <div class="id"><span class="rank">ref</span><span class="who">Human expert<small>the ceiling</small></span><span class="v">75.5</span></div>
+        <div class="id ours"><span class="rank">ours</span><span class="who">Tracely<small>8B, trained on renders only</small></span><span class="v">36.9</span><span class="stamp abs" data-stamp>Ours</span></div>
+        <div class="id"><span class="rank">ref</span><span class="who">Gemini 2.5 Pro<small>strongest published model</small></span><span class="v">35.4</span></div>
+        <div class="id"><span class="rank">ref</span><span class="who">GPT-5</span><span class="v">21.1</span></div>
+        <div class="id"><span class="rank">ref</span><span class="who">Qwen3-VL 235B<small>same model family, larger</small></span><span class="v">19.3</span></div>
       </div>
     </div>
     <div class="notes">
       <div class="note" style="--r:-2deg"><b>Note</b>0 = walking straight ahead. 100 = the expert's path. Below 0 is worse than not thinking at all.</div>
       <div class="note pink" style="--r:1.5deg"><b>Caveat</b>Published scores are Human-only means from the leaderboard's hidden test split. Tracely is scored on the validation split and has not been submitted. Indicative.</div>
-      <div class="note blue" style="--r:-1deg"><b>Finding</b>Adding new kinds of places raised the score far more than adding more of the same.</div>
     </div>
     <figure class="evidence tape" style="margin-top:44px">
       <img src="img/real_examples.jpg" alt="Four real NaviTrace photos with the expert path in green and Tracely's path in red" loading="lazy">
@@ -355,11 +354,6 @@ footer p { margin: 0 0 4px; }
         </div>
         <div class="scene" id="tscene"><img id="timg" alt=""><canvas id="tcanvas"></canvas></div>
         <p class="raw" id="raw"></p>
-      </div>
-      <div style="display:grid; gap:22px">
-        <div class="note" style="--r:2deg"><b>Wait times</b>The GPU starts on demand. After a quiet spell the first request takes 3-4 minutes. Then about 15 seconds each.</div>
-        <div class="note green" style="--r:-1.5deg"><b>Daily limit</b>100 requests per day, shared by everyone. If they run out, try again tomorrow.</div>
-        <div class="note pink" style="--r:1deg"><b>Tip</b>Stand where a pedestrian would. Name something visible: a door, a bench, a person in a red coat.</div>
       </div>
     </div>
   </div>
