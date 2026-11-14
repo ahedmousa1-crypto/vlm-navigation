@@ -255,17 +255,17 @@ footer p { margin: 0 0 4px; }
 
 <section id="overview">
   <div class="wrap">
-    <div class="deskhead"><h2>01 Idea</h2><p>Models can describe a street. Drawing a sensible walking route through it is much harder.</p></div>
+    <div class="deskhead"><h2>01 Idea</h2><p>NaviTrace measures whether a model can turn an instruction into a walking path through a photo.</p></div>
     <div class="two">
       <div class="paper" style="--r:-0.8deg">
-        <div class="formhead"><span>Note 1</span><span>The problem</span></div>
-        <h3>They cannot find the door.</h3>
-        <p>The NaviTrace benchmark hands a model a real photo and an instruction, and scores the path it draws against a human expert's. Leading models fall far short of people. They fail to <b>locate the goal</b> and to <b>ground space</b>: where the sidewalk is, which way the crosswalk goes, what stands in the way.</p>
+        <div class="formhead"><span>Note 1</span><span>The task</span></div>
+        <h3>One photo. One instruction. One path.</h3>
+        <p>NaviTrace gives a model a real photo and an instruction, and scores the path it draws against one drawn by a human expert. The task has two parts: <b>locating the goal</b>, and <b>reading the space</b>: where the sidewalk is, which way the crosswalk goes, what stands in the way.</p>
       </div>
       <div class="paper alt" style="--r:0.9deg">
         <div class="formhead"><span>Note 2</span><span>Our approach</span></div>
         <h3>Build the city. Compute the walk.</h3>
-        <p>Hand-drawn paths are slow and costly. So we build towns in 3D, stand a camera at eye height, and <b>compute</b> the route from the scene itself. Every path is exact by construction. An open 8B model trained on these scenes alone improved from −28.3 to <b>36.9 on real photos</b>, comparable to the strongest published models and still far from a human expert.</p>
+        <p>Path labels are usually drawn by hand. Here, towns are built in 3D, a camera is placed at eye height, and the route is <b>computed</b> from the scene itself, so every path follows from the geometry. An open 8B model trained on these scenes alone scored <b>36.9 on real photos</b>, up from −28.3 before training.</p>
         <span class="stamp blue abs" data-stamp style="right:16px; bottom:10px; --sr:-6deg; font-size:22px">No hand labels</span>
       </div>
     </div>
@@ -315,20 +315,20 @@ footer p { margin: 0 0 4px; }
         </table></div>
       </div>
       <div class="ids">
-        <div class="id"><span class="rank">ref</span><span class="who">Human expert<small>the ceiling</small></span><span class="v">75.5</span></div>
-        <div class="id ours"><span class="rank">ours</span><span class="who">Tracely<small>8B, trained on renders only</small></span><span class="v">36.9</span><span class="stamp abs" data-stamp>Ours</span></div>
-        <div class="id"><span class="rank">ref</span><span class="who">Gemini 2.5 Pro<small>strongest published model</small></span><span class="v">35.4</span></div>
+        <div class="id"><span class="rank">ref</span><span class="who">Human expert<small>human-drawn paths</small></span><span class="v">75.5</span></div>
+        <div class="id ours"><span class="rank">ours</span><span class="who">Tracely<small>8B, trained on synthetic scenes</small></span><span class="v">36.9</span><span class="stamp abs" data-stamp>Ours</span></div>
+        <div class="id"><span class="rank">ref</span><span class="who">Gemini 2.5 Pro</span><span class="v">35.4</span></div>
         <div class="id"><span class="rank">ref</span><span class="who">GPT-5</span><span class="v">21.1</span></div>
-        <div class="id"><span class="rank">ref</span><span class="who">Qwen3-VL 235B<small>same model family, larger</small></span><span class="v">19.3</span></div>
+        <div class="id"><span class="rank">ref</span><span class="who">Qwen3-VL 235B</span><span class="v">19.3</span></div>
       </div>
     </div>
     <div class="notes">
-      <div class="note" style="--r:-2deg"><b>Note</b>0 = walking straight ahead. 100 = the expert's path. Below 0 is worse than not thinking at all.</div>
-      <div class="note pink" style="--r:1.5deg"><b>Caveat</b>Published scores are Human-only means from the leaderboard's hidden test split. Tracely is scored on the validation split and has not been submitted. Indicative.</div>
+      <div class="note" style="--r:-2deg"><b>Scale</b>0 = walking straight ahead. 100 = the expert's path.</div>
+      <div class="note pink" style="--r:1.5deg"><b>Note</b>Published scores are Human-only means from the leaderboard's hidden test split. Tracely is scored on the validation split and has not been submitted, so the numbers are not directly comparable.</div>
     </div>
     <figure class="evidence tape" style="margin-top:44px">
       <img src="img/real_examples.jpg" alt="Four real NaviTrace photos with the expert path in green and Tracely's path in red" loading="lazy">
-      <figcaption><b>Figure.</b> Real NaviTrace photos Tracely never saw. Expert path in green, Tracely in red, score in the corner. Bottom right is a miss: the wrong bus stop.</figcaption>
+      <figcaption><b>Figure.</b> Real NaviTrace photos Tracely never saw. Expert path in green, Tracely in red, score in the corner. In the bottom right example the model chose a different bus stop.</figcaption>
     </figure>
   </div>
 </section>
