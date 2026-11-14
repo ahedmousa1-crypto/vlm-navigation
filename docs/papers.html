@@ -156,7 +156,7 @@ dialog.viewer::backdrop { background: rgba(10, 9, 7, 0.78); }
 .toggle input { accent-color: var(--red); width: 16px; height: 16px; }
 .viewer .info { padding: 16px 4px 20px; display: grid; gap: 12px; }
 .viewer .info h3 { font-size: clamp(26px, 4vw, 38px); text-transform: none; }
-.viewer dl { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin: 0; border-top: 2px solid var(--ink); border-bottom: 2px solid var(--ink); padding: 8px 0; }
+.viewer dl { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin: 0; border-top: 2px solid var(--ink); border-bottom: 2px solid var(--ink); padding: 8px 0; }
 .viewer dt { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--ink-soft); }
 .viewer dd { margin: 0; font-family: var(--pixel); font-size: 22px; text-transform: capitalize; line-height: 1.05; }
 .viewer .ctx { font-size: 14px; color: var(--ink-soft); margin: 0; }
@@ -248,7 +248,7 @@ footer p { margin: 0 0 4px; }
   <div class="wrap tickets">
     <div class="ticket" style="--r:-1.5deg"><div class="num">36.9</div><div class="lbl">NaviTrace score, was −28.3</div></div>
     <div class="ticket" style="--r:1deg"><div class="num">10,220</div><div class="lbl">labeled scenes</div></div>
-    <div class="ticket" style="--r:-0.6deg"><div class="num">3</div><div class="lbl">towns, 125 city blocks</div></div>
+    <div class="ticket" style="--r:-0.6deg"><div class="num">5,373</div><div class="lbl">camera views</div></div>
     <div class="ticket" style="--r:1.4deg"><div class="num">8B</div><div class="lbl">parameters, open model</div></div>
   </div>
 </section>
@@ -278,7 +278,7 @@ footer p { margin: 0 0 4px; }
     <div class="paper light plain" style="--r:0.3deg">
       <div class="formhead"><span>How a scene is made</span><span>4 steps</span></div>
       <div class="rules">
-        <div class="rule"><div class="n">1</div><h3>Build a town</h3><p>A streets town, an old town on two levels with people and cafes, a campus above a lake. Every surface is tagged.</p></div>
+        <div class="rule"><div class="n">1</div><h3>Build a town</h3><p>Streets, squares, parks, stairs, water, people and cafes, generated in 3D by scripts. Every surface is tagged.</p></div>
         <div class="rule"><div class="n">2</div><h3>Place a camera</h3><p>At eye height on a sidewalk, square or park path, looking where a pedestrian would. 5,373 cameras.</p></div>
         <div class="rule"><div class="n">3</div><h3>Plan the walk</h3><p>A* search on a 25 cm map: sidewalks first, roads only at crossings, around groups of people, stairs or ramps where needed.</p></div>
         <div class="rule"><div class="n">4</div><h3>Render and label</h3><p>The image, a per-pixel class mask, the task in plain English, the path in image pixels.</p></div>
@@ -289,7 +289,7 @@ footer p { margin: 0 0 4px; }
 
 <section id="explore">
   <div class="wrap">
-    <div class="deskhead"><h2>03 Scenes</h2><p>A sample from the three towns. Pick up any card to see the task, its labels and the path a person would take.</p></div>
+    <div class="deskhead"><h2>03 Scenes</h2><p>A sample of the scenes. Pick up any card to see the task, its labels and the path a person would take.</p></div>
     <div class="filters" role="group" aria-label="Filter scenes" id="filters"></div>
     <div class="grid" id="grid"></div>
     <p class="empty" id="empty" hidden>No scenes match this filter.</p>
@@ -376,7 +376,7 @@ footer p { margin: 0 0 4px; }
         <div class="facts">
           <div><b>8,392</b> training scenes · <b>1,828</b> test scenes, whole blocks held out</div>
           <div>Goal tasks <b>8,718</b> · Directions tasks <b>1,502</b></div>
-          <div><b>3</b> towns · <b>5</b> lighting conditions</div>
+          <div><b>5</b> lighting conditions, day to moonlight</div>
         </div>
         <div class="code"><code id="snippet">load_dataset("ahd03/vln-synthetic-streets")</code><button class="copy" type="button" data-for="snippet">Copy</button></div>
         <div class="doclinks"><a href="https://huggingface.co/datasets/ahd03/vln-synthetic-streets" target="_blank" rel="noopener">Hugging Face</a></div>
@@ -421,7 +421,7 @@ footer p { margin: 0 0 4px; }
       <div><dt>Task type</dt><dd id="v-type"></dd></div>
       <div><dt>Place</dt><dd id="v-place"></dd></div>
       <div><dt>Lighting</dt><dd id="v-light"></dd></div>
-      <div><dt>Town</dt><dd id="v-split"></dd></div>
+      <div hidden><dt>Town</dt><dd id="v-split"></dd></div>
     </dl>
     <div class="tags" id="v-cats"></div>
     <p class="ctx" id="v-ctx"></p>
@@ -510,7 +510,7 @@ const feature = document.getElementById("feature");
 feature.append(sceneNode(featured, { animate: true, stroke: 8 }));
 const cap = el("figcaption", { class: "feature-cap" });
 cap.append(el("span", { class: "task" }, "“" + featured.task + "”"));
-cap.append(el("span", { class: "meta" }, (PLACE[featured.variant] || "") + " · " + (WORLD[featured.world] || "")));
+cap.append(el("span", { class: "meta" }, PLACE[featured.variant] || ""));
 feature.append(cap);
 
 // Gallery
