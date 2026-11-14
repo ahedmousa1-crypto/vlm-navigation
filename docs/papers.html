@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Tracely</title>
-<meta name="description" content="Tracely: a vision-language model that draws where a person would walk, trained only on synthetic street scenes. Dataset, model, results and a live demo.">
+<meta name="description" content="Tracely is a LoRA adapter for Qwen3-VL-8B trained on synthetic street scenes to predict walking paths, evaluated on NaviTrace.">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Special+Elite&family=VT323&display=swap" rel="stylesheet">
 <style>
@@ -230,11 +230,11 @@ footer p { margin: 0 0 4px; }
   <div class="wrap herogrid">
     <div class="paper light clip" style="--r:-1.2deg">
       <div class="formhead"><span>Project note · Summary</span><span>Nov 2026</span></div>
-      <h1>Teaching AI to find its way through a city.</h1>
-      <p class="sub">This project targets NaviTrace, a benchmark that asks a model to draw the path a person would walk through a street photo. Tracely is an open 8B model trained for that task on 10,220 synthetic scenes only. Its score on real photos rose from −28.3 to 36.9.</p>
+      <h1>Learning walking paths from synthetic street scenes</h1>
+      <p class="sub">Tracely is a LoRA adapter for Qwen3-VL-8B trained on 10,220 synthetic first-person scenes with computed walking paths. We evaluate it on NaviTrace, where a model draws the path a person would take through a real photo. On the Human tasks of the validation split the score goes from −28.3 to 36.9.</p>
       <div class="ctas">
-        <a class="btn primary" href="#try">Try it yourself</a>
-        <a class="btn ghost" href="#explore">Browse the scenes</a>
+        <a class="btn primary" href="#try">Try the demo</a>
+        <a class="btn ghost" href="#explore">Browse scenes</a>
       </div>
     </div>
     <div class="photo tape">
@@ -244,28 +244,19 @@ footer p { margin: 0 0 4px; }
   </div>
 </header>
 
-<section aria-label="Key numbers" style="padding-top:20px">
-  <div class="wrap tickets">
-    <div class="ticket" style="--r:-1.5deg"><div class="num">36.9</div><div class="lbl">NaviTrace score, was −28.3</div></div>
-    <div class="ticket" style="--r:1deg"><div class="num">10,220</div><div class="lbl">labeled scenes</div></div>
-    <div class="ticket" style="--r:-0.6deg"><div class="num">5,373</div><div class="lbl">camera views</div></div>
-    <div class="ticket" style="--r:1.4deg"><div class="num">8B</div><div class="lbl">parameters, open model</div></div>
-  </div>
-</section>
-
 <section id="overview">
   <div class="wrap">
-    <div class="deskhead"><h2>01 Idea</h2><p>NaviTrace measures whether a model can turn an instruction into a walking path through a photo.</p></div>
+    <div class="deskhead"><h2>01 Idea</h2></div>
     <div class="two">
       <div class="paper" style="--r:-0.8deg">
-        <div class="formhead"><span>Note 1</span><span>The task</span></div>
-        <h3>One photo. One instruction. One path.</h3>
-        <p>NaviTrace gives a model a real photo and an instruction, and scores the path it draws against one drawn by a human expert. The task has two parts: <b>locating the goal</b>, and <b>reading the space</b>: where the sidewalk is, which way the crosswalk goes, what stands in the way.</p>
+        <div class="formhead"><span>Background</span><span>NaviTrace</span></div>
+        <h3>The task</h3>
+        <p>NaviTrace gives a model a first-person photo and an instruction such as “go to the bench on the left”. The model returns a path as 2D points in the image. The path is scored against one drawn by a human annotator, with penalties for crossing surfaces a pedestrian would avoid.</p>
       </div>
       <div class="paper alt" style="--r:0.9deg">
-        <div class="formhead"><span>Note 2</span><span>Our approach</span></div>
-        <h3>Build the city. Compute the walk.</h3>
-        <p>Path labels are usually drawn by hand. Here, towns are built in 3D, a camera is placed at eye height, and the route is <b>computed</b> from the scene itself, so every path follows from the geometry. An open 8B model trained on these scenes alone scored <b>36.9 on real photos</b>, up from −28.3 before training.</p>
+        <div class="formhead"><span>Approach</span><span>Synthetic data</span></div>
+        <h3>Computed labels</h3>
+        <p>We build towns in Blender with procedural scripts and place cameras at eye height. A route planner computes the walking path to each target and projects it into the image, so no path is drawn by hand. The model is trained on these scenes only and evaluated on real photos.</p>
         <span class="stamp blue abs" data-stamp style="right:16px; bottom:10px; --sr:-6deg; font-size:22px">No hand labels</span>
       </div>
     </div>
@@ -274,14 +265,14 @@ footer p { margin: 0 0 4px; }
 
 <section id="how">
   <div class="wrap">
-    <div class="deskhead"><h2>02 Method</h2><p>Four steps turn a procedural town into training data.</p></div>
+    <div class="deskhead"><h2>02 Method</h2></div>
     <div class="paper light plain" style="--r:0.3deg">
       <div class="formhead"><span>How a scene is made</span><span>4 steps</span></div>
       <div class="rules">
-        <div class="rule"><div class="n">1</div><h3>Build a town</h3><p>Streets, squares, parks, stairs, water, people and cafes, generated in 3D by scripts. Every surface is tagged.</p></div>
-        <div class="rule"><div class="n">2</div><h3>Place a camera</h3><p>At eye height on a sidewalk, square or park path, looking where a pedestrian would. 5,373 cameras.</p></div>
-        <div class="rule"><div class="n">3</div><h3>Plan the walk</h3><p>A route planner works out the path a person would take: stay on the sidewalk, cross roads only at crossings, walk around people and obstacles, use stairs or a ramp where needed.</p></div>
-        <div class="rule"><div class="n">4</div><h3>Render and label</h3><p>The image, a per-pixel class mask, the task in plain English, the path in image pixels.</p></div>
+        <div class="rule"><div class="n">1</div><h3>Build a town</h3><p>Scripts generate streets, squares, parks, stairs, water, people and street furniture. Each surface carries a class label.</p></div>
+        <div class="rule"><div class="n">2</div><h3>Place cameras</h3><p>5,373 cameras at eye height on walkable ground, facing along streets and paths.</p></div>
+        <div class="rule"><div class="n">3</div><h3>Plan the path</h3><p>A route planner finds the path to the target. It keeps to sidewalks, crosses roads at crossings, avoids people and obstacles, and uses stairs or ramps where needed.</p></div>
+        <div class="rule"><div class="n">4</div><h3>Render</h3><p>Blender renders the image and a segmentation mask. The path is projected to image pixels and stored with the task text.</p></div>
       </div>
     </div>
   </div>
@@ -289,7 +280,7 @@ footer p { margin: 0 0 4px; }
 
 <section id="explore">
   <div class="wrap">
-    <div class="deskhead"><h2>03 Scenes</h2><p>A sample of the scenes. Pick up any card to see the task, its labels and the path a person would take.</p></div>
+    <div class="deskhead"><h2>03 Scenes</h2><p>Samples from the dataset. Click a card for the task, labels and path.</p></div>
     <div class="filters" role="group" aria-label="Filter scenes" id="filters"></div>
     <div class="grid" id="grid"></div>
     <p class="empty" id="empty" hidden>No scenes match this filter.</p>
@@ -298,7 +289,7 @@ footer p { margin: 0 0 4px; }
 
 <section id="results">
   <div class="wrap">
-    <div class="deskhead"><h2>04 Results</h2><p>Trained on renders. Tested on photos. 500 Human scenarios of the NaviTrace validation split, official scoring code.</p></div>
+    <div class="deskhead"><h2>04 Results</h2><p>500 Human scenarios, NaviTrace validation split, official scoring code.</p></div>
     <div class="audit">
       <div class="paper light plain" style="--r:-0.5deg">
         <div class="formhead"><span>Score sheet · By category</span><span>Qwen3-VL-8B + LoRA</span></div>
@@ -315,30 +306,30 @@ footer p { margin: 0 0 4px; }
         </table></div>
       </div>
       <div class="ids">
-        <div class="id"><span class="rank">ref</span><span class="who">Human expert<small>human-drawn paths</small></span><span class="v">75.5</span></div>
-        <div class="id ours"><span class="rank">ours</span><span class="who">Tracely<small>8B, trained on synthetic scenes</small></span><span class="v">36.9</span><span class="stamp abs" data-stamp>Ours</span></div>
+        <div class="id"><span class="rank">ref</span><span class="who">Human expert</span><span class="v">75.5</span></div>
+        <div class="id ours"><span class="rank">ours</span><span class="who">Tracely<small>this work</small></span><span class="v">36.9</span><span class="stamp abs" data-stamp>Ours</span></div>
         <div class="id"><span class="rank">ref</span><span class="who">Gemini 2.5 Pro</span><span class="v">35.4</span></div>
         <div class="id"><span class="rank">ref</span><span class="who">GPT-5</span><span class="v">21.1</span></div>
         <div class="id"><span class="rank">ref</span><span class="who">Qwen3-VL 235B</span><span class="v">19.3</span></div>
       </div>
     </div>
     <div class="notes">
-      <div class="note" style="--r:-2deg"><b>Scale</b>0 = walking straight ahead. 100 = the expert's path.</div>
-      <div class="note pink" style="--r:1.5deg"><b>Note</b>Published scores are Human-only means from the leaderboard's hidden test split. Tracely is scored on the validation split and has not been submitted, so the numbers are not directly comparable.</div>
+      <div class="note" style="--r:-2deg"><b>Scale</b>0 is walking straight ahead. 100 is the annotator's path.</div>
+      <div class="note pink" style="--r:1.5deg"><b>Note</b>Reference scores are Human-only means on the hidden test split, computed from the public leaderboard files. Tracely is scored on the validation split and has not been submitted.</div>
     </div>
     <figure class="evidence tape" style="margin-top:44px">
       <img src="img/real_examples.jpg" alt="Four real NaviTrace photos with the expert path in green and Tracely's path in red" loading="lazy">
-      <figcaption><b>Figure.</b> Real NaviTrace photos Tracely never saw. Expert path in green, Tracely in red, score in the corner. In the bottom right example the model chose a different bus stop.</figcaption>
+      <figcaption>Real NaviTrace photos. Annotator path in green, Tracely in red, score in the corner.</figcaption>
     </figure>
   </div>
 </section>
 
 <section id="try">
   <div class="wrap">
-    <div class="deskhead"><h2>05 Try it</h2><p>Upload a first-person street photo and write an instruction. Tracely draws the walk.</p></div>
+    <div class="deskhead"><h2>05 Try it</h2><p>Upload a first-person street photo and an instruction.</p></div>
     <div class="booth">
       <div class="paper light plain try" style="--r:-0.4deg">
-        <div class="formhead"><span>Try Tracely</span><span>Two things needed</span></div>
+        <div class="formhead"><span>Demo</span><span>Runs on a cloud GPU</span></div>
         <div class="row">
           <span class="lbl">1. Photo</span>
           <label class="btn ghost" for="file">Choose a photo</label>
@@ -361,12 +352,12 @@ footer p { margin: 0 0 4px; }
 
 <section id="dataset">
   <div class="wrap">
-    <div class="deskhead"><h2>06 Get it</h2><p>Open data. Open model. Open code. Take what you need.</p></div>
+    <div class="deskhead"><h2>06 Get it</h2><p>Dataset, model and code are public.</p></div>
     <div class="two">
       <div class="paper" style="--r:-0.7deg">
         <div class="formhead"><span>Dataset</span><span>CC BY 4.0</span></div>
         <h3>VLN Synthetic Streets</h3>
-        <p>NaviTrace columns: image, task, embodiment, ground-truth path, segmentation mask, categories and metadata.</p>
+        <p>Same columns as NaviTrace. Image, task, ground-truth path, segmentation mask, categories and metadata.</p>
         <div class="facts">
           <div><b>8,392</b> training scenes · <b>1,828</b> test scenes, whole blocks held out</div>
           <div>Goal tasks <b>8,718</b> · Directions tasks <b>1,502</b></div>
@@ -378,7 +369,7 @@ footer p { margin: 0 0 4px; }
       <div class="paper alt" style="--r:0.8deg">
         <div class="formhead"><span>Model and code</span><span>Apache 2.0 · MIT</span></div>
         <h3>Tracely</h3>
-        <p>A 175 MB LoRA adapter for Qwen3-VL-8B-Instruct. The repository holds the Blender scripts that build the towns, place cameras, plan routes and render, plus training, scoring and this demo.</p>
+        <p>LoRA adapter for Qwen3-VL-8B-Instruct, 175 MB. The repository contains the Blender pipeline, the training and scoring code, and this demo.</p>
         <div class="facts">
           <div>LoRA rank <b>16</b> · about <b>4 h</b> on one A100</div>
         </div>
